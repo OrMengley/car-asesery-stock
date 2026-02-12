@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { 
+  Add01Icon, 
+  PencilEdit01Icon, 
+  Delete01Icon, 
+  GridViewIcon,
+  Loading01Icon
+} from "hugeicons-react";
 import { getCategories, archiveCategory } from "@/lib/firebase/actions";
 import { toast } from "sonner";
 import { Category } from "@/types";
@@ -12,7 +18,6 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CategoryForm } from "@/components/forms/CategoryForm";
@@ -25,11 +30,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { format } from "date-fns";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
   async function fetchCategories() {
@@ -50,7 +56,7 @@ export default function CategoriesPage() {
 
   const handleEdit = (category: Category) => {
     setEditingCategory(category);
-    setOpen(true);
+    setSheetOpen(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -66,95 +72,133 @@ export default function CategoriesPage() {
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6 p-4 lg:p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold md:text-2xl">Categories</h1>
-        <Sheet open={open} onOpenChange={(val) => {
-          setOpen(val);
-          if (!val) setEditingCategory(null);
-        }}>
-          <SheetTrigger asChild>
-            <Button size="sm" className="bg-primary hover:bg-primary/90 shadow-md" onClick={() => setEditingCategory(null)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Category
-            </Button>
-          </SheetTrigger>
-          <SheetContent 
-            side="bottom" 
-            className="sm:max-w-[700px] mx-auto rounded-t-[2.5rem] border-x-0 sm:border-x border-t shadow-2xl bg-background px-6 pb-10 pt-2 h-auto max-h-[95vh] overflow-hidden flex flex-col"
-          >
-            <div className="w-12 h-1.5 bg-muted rounded-full mx-auto mb-4 mt-2" />
-            <SheetHeader className="pb-4">
-              <SheetTitle className="text-2xl font-bold text-center">
-                {editingCategory ? "Edit Category" : "Create New Category"}
-              </SheetTitle>
-              <SheetDescription className="text-center">
-                {editingCategory ? "Update category details." : "Categorize your products for better organization."}
-              </SheetDescription>
-            </SheetHeader>
-            <ScrollArea className="flex-1 min-h-0 px-4 pr-6">
-              <div className="py-4">
-                <CategoryForm 
-                  initialData={editingCategory || undefined}
-                  onSuccess={() => {
-                    setOpen(false);
-                    setEditingCategory(null);
-                    fetchCategories();
-                  }} 
-                />
-              </div>
-            </ScrollArea>
-          </SheetContent>
-        </Sheet>
+        <div className="flex items-center gap-2">
+          <GridViewIcon className="size-6 text-primary" />
+          <h1 className="text-xl font-bold tracking-tight md:text-2xl">Category Management</h1>
+        </div>
+        <Button 
+          size="sm" 
+          className="lg:hidden bg-primary hover:bg-primary/90 shadow-md"
+          onClick={() => {
+            setEditingCategory(null);
+            setSheetOpen(true);
+          }}
+        >
+          <Add01Icon className="mr-2 size-4" />
+          Add Category
+        </Button>
       </div>
 
-      <div className="rounded-lg border shadow-sm">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Created At</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
+      <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6 items-start">
+        {/* Left Column: Create Form (Hidden on Mobile) */}
+        <Card className="hidden lg:block shadow-sm border-primary/10">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Add01Icon className="size-5 text-primary" />
+              Quick Create
+            </CardTitle>
+            <CardDescription>
+              Add a new category to organize your products.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CategoryForm 
+              onSuccess={() => {
+                fetchCategories();
+              }} 
+            />
+          </CardContent>
+        </Card>
+
+        {/* Right Column: Data Table */}
+        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+          <Table>
+            <TableHeader className="bg-muted/50">
               <TableRow>
-                <TableCell colSpan={3} className="text-center h-24">
-                  Loading...
-                </TableCell>
+                <TableHead className="font-bold">Name</TableHead>
+                <TableHead className="font-bold">Created At</TableHead>
+                <TableHead className="text-right font-bold">Actions</TableHead>
               </TableRow>
-            ) : categories.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={3} className="text-center h-24 text-muted-foreground">
-                  No categories found.
-                </TableCell>
-              </TableRow>
-            ) : (
-              categories.map((category) => (
-                <TableRow key={category.id}>
-                  <TableCell className="font-medium">{category.name}</TableCell>
-                  <TableCell>
-                    {category.created_at
-                      ? format(category.created_at, "MMM dd, yyyy")
-                      : "Just now"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                       <Button size="sm" variant="ghost" onClick={() => handleEdit(category)}>
-                         <Pencil className="h-4 w-4 text-blue-600" />
-                       </Button>
-                       <Button size="sm" variant="ghost" onClick={() => handleDelete(category.id)}>
-                         <Trash2 className="h-4 w-4 text-destructive" />
-                       </Button>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center h-48">
+                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                      <Loading01Icon className="animate-spin size-6" />
+                      <span>Loading categories...</span>
                     </div>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : categories.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center h-48 text-muted-foreground">
+                    No categories found.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                categories.map((category) => (
+                  <TableRow key={category.id} className="hover:bg-muted/30 transition-colors">
+                    <TableCell className="font-medium">{category.name}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {category.created_at
+                        ? format(category.created_at, "MMM dd, yyyy")
+                        : "Just now"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                         <Button size="icon" variant="ghost" className="size-8 text-primary hover:text-primary hover:bg-primary/10" onClick={() => handleEdit(category)}>
+                           <PencilEdit01Icon className="size-4" />
+                         </Button>
+                         <Button size="icon" variant="ghost" className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDelete(category.id)}>
+                           <Delete01Icon className="size-4" />
+                         </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
+
+      {/* Edit Sheet (still useful for editing) */}
+      <Sheet open={sheetOpen} onOpenChange={(val) => {
+        setSheetOpen(val);
+        if (!val) setEditingCategory(null);
+      }}>
+        <SheetContent 
+          side="right" 
+          className="sm:max-w-[450px] bg-background px-6 pb-10 pt-6 flex flex-col gap-6"
+        >
+          <SheetHeader>
+            <SheetTitle className="text-xl font-bold flex items-center gap-2">
+              {editingCategory ? (
+                <PencilEdit01Icon className="size-5 text-primary" />
+              ) : (
+                <Add01Icon className="size-5 text-primary" />
+              )}
+              {editingCategory ? "Edit Category" : "Create New Category"}
+            </SheetTitle>
+            <SheetDescription>
+              {editingCategory ? "Update the category name and details." : "Add a new category to organize your products."}
+            </SheetDescription>
+          </SheetHeader>
+          <ScrollArea className="flex-1 -mx-2 px-2">
+            <CategoryForm 
+              initialData={editingCategory || undefined}
+              onSuccess={() => {
+                setSheetOpen(false);
+                setEditingCategory(null);
+                fetchCategories();
+              }} 
+            />
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

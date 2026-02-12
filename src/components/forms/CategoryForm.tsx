@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useState } from "react";
-import { Loader2, Tag, Sparkles } from "lucide-react";
+import { Loading01Icon, TagsIcon, MagicWand01Icon } from "hugeicons-react";
 import { createCategory, updateCategory } from "@/lib/firebase/actions";
 import { Category } from "@/types";
 
@@ -62,9 +62,9 @@ export function CategoryForm({ initialData, onSuccess }: CategoryFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <div className="p-5 rounded-2xl bg-teal-50/50 border border-teal-100/50 space-y-4 shadow-sm">
-          <div className="flex items-center gap-2 text-teal-600 font-bold text-base mb-2">
-            <Tag className="h-5 w-5" />
+        <div className="p-5 rounded-2xl bg-primary/5 border border-primary/10 space-y-4 shadow-sm">
+          <div className="flex items-center gap-2 text-primary font-bold text-base mb-2">
+            <TagsIcon className="h-5 w-5" />
             General Information
           </div>
           
@@ -73,11 +73,11 @@ export function CategoryForm({ initialData, onSuccess }: CategoryFormProps) {
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="font-semibold text-slate-700">Category Name</FormLabel>
+                <FormLabel className="font-semibold text-foreground/80">Category Name</FormLabel>
                 <FormControl>
                   <Input 
                     placeholder="Electronics, Car Parts, etc." 
-                    className="h-12 bg-background/50 border-teal-100 focus-visible:ring-teal-500 text-base" 
+                    className="h-12 bg-background border-primary/20 focus-visible:ring-primary text-base" 
                     {...field} 
                   />
                 </FormControl>
@@ -90,9 +90,9 @@ export function CategoryForm({ initialData, onSuccess }: CategoryFormProps) {
         <Button 
           type="submit" 
           disabled={loading} 
-          className="w-full h-12 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 transition-all duration-300 shadow-lg shadow-teal-500/20"
+          className="w-full h-12 bg-primary hover:bg-primary/90 transition-all duration-300 shadow-lg shadow-primary/20"
         >
-          {loading ? <Loader2 className="animate-spin h-5 w-5 mr-2" /> : <Sparkles className="h-5 w-5 mr-2" />}
+          {loading ? <Loading01Icon className="animate-spin h-5 w-5 mr-2" /> : <MagicWand01Icon className="h-5 w-5 mr-2" />}
           <span className="font-semibold tracking-wide uppercase">
             {initialData ? "Update Category" : "Create Category"}
           </span>
