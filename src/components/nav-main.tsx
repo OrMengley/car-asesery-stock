@@ -1,6 +1,8 @@
 "use client"
 
 import { AddCircleIcon, Mail01Icon } from "hugeicons-react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 import type { ComponentType } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -21,6 +23,7 @@ export function NavMain({
     icon?: ComponentType<{ className?: string }>
   }[]
 }) {
+  const pathname = usePathname()
   return (
     <SidebarGroup>
       <SidebarGroupContent className="flex flex-col gap-2">
@@ -46,11 +49,11 @@ export function NavMain({
         <SidebarMenu>
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild tooltip={item.title}>
-                <a href={item.url}>
+              <SidebarMenuButton asChild tooltip={item.title} isActive={pathname === item.url}>
+                <Link href={item.url}>
                   {item.icon && <item.icon />}
                   <span>{item.title}</span>
-                </a>
+                </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}

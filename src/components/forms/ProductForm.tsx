@@ -51,6 +51,7 @@ const formSchema = z.object({
   name: z.string().min(2, { message: "Product name is required." }),
   barcode: z.string().min(1, { message: "Barcode is required." }),
   price: z.coerce.number().min(0, "Price must be positive."),
+  cost_recommand: z.coerce.number().min(0, "Recommanded cost must be positive."),
   category_id: z.string().optional(),
   images: z.array(z.string()).default([]),
   thumbnails: z.array(z.string()).default([]),
@@ -74,6 +75,7 @@ export function ProductForm({ initialData, onSuccess }: ProductFormProps) {
       name: initialData?.name || "",
       barcode: initialData?.barcode || "",
       price: initialData?.price || 0,
+      cost_recommand: initialData?.cost_recommand || 0,
       category_id: initialData?.category_id || "",
       images: initialData?.images || [],
       thumbnails: initialData?.thumbnails || [],
@@ -273,7 +275,7 @@ export function ProductForm({ initialData, onSuccess }: ProductFormProps) {
                 )}
               />
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
                 <FormField<ProductFormValues, "barcode">
                   control={form.control}
                   name="barcode"
@@ -306,6 +308,29 @@ export function ProductForm({ initialData, onSuccess }: ProductFormProps) {
                     </FormItem>
                   )}
                 />
+
+                <FormField<ProductFormValues, "cost_recommand">
+                  control={form.control}
+                  name="cost_recommand"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2 font-semibold">
+                        <Dollar01Icon className="h-4 w-4 text-primary/70" />
+                        Recommended Cost ($)
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          className="h-12 bg-background border-primary/20 focus-visible:ring-primary text-base"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
 
                 <FormField<ProductFormValues, "price">
                   control={form.control}
@@ -373,11 +398,34 @@ export function ProductForm({ initialData, onSuccess }: ProductFormProps) {
                   Product Gallery
                 </div>
                 <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-                  Optimized
+                  {images.length} Images
                 </Badge>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {/* Upload Trigger - Now First for better visibility */}
+                <label className="relative aspect-square rounded-xl border-2 border-dashed border-primary/20 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-primary/10 hover:border-primary/40 transition-all group overflow-hidden bg-background">
+                  {uploading ? (
+                    <Loading01Icon className="h-8 w-8 animate-spin text-primary z-10" />
+                  ) : (
+                    <>
+                      <ImageAdd01Icon className="h-8 w-8 text-primary/50 group-hover:text-primary transition-all group-hover:scale-110 z-10" />
+                      <span className="text-[10px] text-primary/60 font-bold uppercase tracking-widest z-10">
+                        Add Photo
+                      </span>
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploading}
+                    onChange={handleImageUpload}
+                  />
+                </label>
+
+                {/* Existing Images */}
                 {images.map((url, index) => (
                   <div
                     key={index}
@@ -401,27 +449,6 @@ export function ProductForm({ initialData, onSuccess }: ProductFormProps) {
                     </div>
                   </div>
                 ))}
-
-                <label className="relative aspect-square rounded-xl border-2 border-dashed border-primary/20 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-primary/10 hover:border-primary/40 transition-all group overflow-hidden">
-                  {uploading ? (
-                    <Loading01Icon className="h-8 w-8 animate-spin text-primary z-10" />
-                  ) : (
-                    <>
-                      <ImageAdd01Icon className="h-8 w-8 text-primary/50 group-hover:text-primary transition-all group-hover:scale-110 z-10" />
-                      <span className="text-[10px] text-primary/60 font-bold uppercase tracking-widest z-10">
-                        Add Media
-                      </span>
-                    </>
-                  )}
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    className="hidden"
-                    disabled={uploading}
-                    onChange={handleImageUpload}
-                  />
-                </label>
               </div>
             </div>
           </div>

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase/config";
+import { auth, db } from "@/lib/firebase/config";
+import { doc, getDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,11 +23,48 @@ export default function LoginPage() {
     setError("");
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      // Get ID Token which includes expiration
+      const tokenResult = await user.getIdTokenResult();
+      
+      // Fetch user info from Firestore
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      const userData = userDoc.exists() ? userDoc.data() : null;
+
+      if (userData?.is_archived) {
+        throw new Error("Your account has been archived. Please contact an administrator.");
+      }
+
+      // Save to local storage
+      const authData = {
+        uid: user.uid,
+        email: user.email,
+        token: tokenResult.token,
+        expirationTime: tokenResult.expirationTime,
+        user_info: userData,
+        lastLogin: new Date().toISOString()
+      };
+      
+      localStorage.setItem("user_auth", JSON.stringify(authData));
+      
       router.push("/"); // Redirect to dashboard after login
     } catch (err: any) {
-      console.error(err);
-      setError("Failed to login. Please check your credentials.");
+      console.error("Login error details:", err);
+      
+      const errorCode = err.code;
+      if (errorCode === "auth/invalid-credential") {
+        setError("Invalid email or password. Please try again.");
+      } else if (errorCode === "auth/user-not-found") {
+        setError("No account found with this email.");
+      } else if (errorCode === "auth/wrong-password") {
+        setError("Incorrect password.");
+      } else if (errorCode === "auth/too-many-requests") {
+        setError("Too many failed attempts. Please try again later.");
+      } else {
+        setError(err.message || "Failed to login. Please check your credentials.");
+      }
     } finally {
       setLoading(false);
     }

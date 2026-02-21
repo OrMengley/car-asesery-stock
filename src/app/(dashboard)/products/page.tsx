@@ -119,7 +119,7 @@ export default function ProductsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6 items-start">
         {/* Left Column: Create Form (Hidden on Mobile) */}
-        <Card className="hidden lg:flex flex-col shadow-sm border-primary/10 max-h-[calc(100vh-180px)] overflow-hidden">
+        <Card className="hidden lg:flex flex-col shadow-sm border-primary/10 max-h-[calc(100vh-180px)] overflow-y-auto">
           <CardHeader className="shrink-0">
             <CardTitle className="text-lg flex items-center gap-2">
               <Add01Icon className="size-5 text-primary" />
@@ -129,15 +129,17 @@ export default function ProductsPage() {
               Add a new product to your inventory catalog.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex-1 overflow-hidden p-0">
-            <ScrollArea className= "flex-1 min-h-0">
-              <ProductForm 
-              onSuccess={() => {
-                fetchData();
-              }} 
-            />
-            </ScrollArea>
+         
+           
+         <ScrollArea className="flex-1 min-h-0">
+           <CardContent className="">
+                <ProductForm 
+                  onSuccess={() => {
+                    fetchData();
+                  }} 
+                />
           </CardContent>
+         </ScrollArea>
         </Card>
 
         {/* Right Column: Data Table */}
@@ -264,7 +266,7 @@ export default function ProductsPage() {
 
       {/* Product Detail Sheet */}
       <Sheet open={detailOpen} onOpenChange={setDetailOpen}>
-        <SheetContent side="right" className="sm:max-w-[600px] p-0 flex flex-col overflow-hidden">
+        <SheetContent side="right" className="sm:max-w-[600px] p-0 flex flex-col overflow-y-scroll">
           <SheetHeader className="p-6 border-b shrink-0 bg-primary/5">
             <SheetTitle className="text-xl font-bold flex items-center gap-2">
               <ViewIcon className="size-6 text-primary" />
@@ -281,18 +283,19 @@ export default function ProductsPage() {
                 {/* Image Gallery */}
                 {viewingProduct.images && viewingProduct.images.length > 0 && (
                   <div className="space-y-4">
-                    <div className="relative aspect-video rounded-3xl overflow-hidden border-2 border-primary/10 bg-muted shadow-xl ring-1 ring-black/5">
+                    <div className="relative rounded-3xl overflow-hidden border-2 border-primary/10 bg-muted shadow-xl ring-1 ring-black/5 flex items-center justify-center">
                       <Image
                         src={getOptimizedImageUrl(viewingProduct.images[selectedImageIndex] || viewingProduct.images[0], 1080)}
                         alt={viewingProduct.name}
-                        fill
-                        className="object-cover transition-all duration-300"
+                        width={1000}
+                        height={1000}
+                        className="w-full h-auto max-h-[600px] object-contain transition-all duration-300"
                         sizes="(max-width: 768px) 100vw, 600px"
                       />
                     </div>
                     
                     <ScrollArea orientation="horizontal" className="w-full whitespace-nowrap pb-2">
-                      <div className="flex gap-3">
+                      <div className="flex gap-3 flex-wrap">
                         {viewingProduct.thumbnails.map((thumb, i) => (
                           <div 
                             key={i} 
@@ -307,7 +310,7 @@ export default function ProductsPage() {
                                src={getOptimizedImageUrl(thumb, 200)} 
                                alt="" 
                                fill 
-                               className="object-cover" 
+                               className="object-contain p-1.5 transition-transform hover:scale-110" 
                                sizes="64px"
                              />
                            </div>
@@ -361,7 +364,7 @@ export default function ProductsPage() {
                   <div className="bg-primary/5 p-6 rounded-3xl border border-primary/10 flex items-center justify-between shadow-inner">
                     <div>
                       <h3 className="text-xs font-bold text-primary uppercase tracking-widest mb-1">Average Unit Cost</h3>
-                      <p className="text-3xl font-black text-primary">${viewingProduct.average_cost.toFixed(2)}</p>
+                      <p className="text-3xl font-black text-primary">${(viewingProduct.cost_recommand || 0).toFixed(2)}</p>
                     </div>
                     <MagicWand01Icon className="size-12 text-primary/10" />
                   </div>

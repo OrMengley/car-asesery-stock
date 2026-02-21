@@ -2,6 +2,7 @@ import { db } from "./config";
 import {
     collection,
     addDoc,
+    setDoc,
     updateDoc,
     deleteDoc,
     doc,
@@ -9,9 +10,11 @@ import {
     query,
     where,
     orderBy,
-    Timestamp,
     serverTimestamp,
 } from "firebase/firestore";
+import { initializeApp, deleteApp } from "firebase/app";
+import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
+import { firebaseConfig } from "./config";
 import { Category, Product, User, Role } from "@/types";
 
 // --- Categories ---
@@ -77,17 +80,43 @@ export async function getUsers() {
 }
 
 export async function createUser(data: { name: string; username: string; role: Role; email: string; password?: string }) {
-    // Note: In a real app, you'd create the Auth user here via Admin SDK or secondary app instance.
-    // For now, we just create the Firestore document.
-    await addDoc(collection(db, "users"), {
-        name: data.name,
-        username: data.username,
-        email: data.email, // Added email to schema for practical use
-        role: data.role,
-        password: data.password || "", // Storing plain text for mock/demo purposes - NOT SECURE for production
-        created_at: serverTimestamp(),
-        is_archived: false,
-    });
+    // To create a user without logging out the current admin session,
+    // we use a secondary Firebase app instance.
+    const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
+    const secondaryAuth = getAuth(secondaryApp);
+
+    try {
+        if (!data.password) throw new Error("Password is required for new users");
+
+        // 1. Create the user in Firebase Authentication
+        const userCredential = await createUserWithEmailAndPassword(
+            secondaryAuth,
+            data.email,
+            data.password
+        );
+        const authId = userCredential.user.uid;
+
+        // 2. Create the user document in Firestore using the same ID
+        const userDocRef = doc(db, "users", authId);
+        await setDoc(userDocRef, {
+            name: data.name,
+            username: data.username,
+            email: data.email,
+            role: data.role,
+            created_at: serverTimestamp(),
+            is_archived: false,
+        });
+
+        // We use updateDoc on a doc(db, "users", authId) so we can control the ID, 
+        // but if it doesn't exist we should use setDoc.
+        // Actually, let's use setDoc to be safe.
+    } catch (error) {
+        console.error("Error creating auth user:", error);
+        throw error;
+    } finally {
+        await signOut(secondaryAuth);
+        await deleteApp(secondaryApp);
+    }
 }
 
 export async function archiveUser(id: string) {
@@ -96,6 +125,19 @@ export async function archiveUser(id: string) {
         is_archived: true,
         archived_at: serverTimestamp(),
     });
+}
+
+export async function updateUser(id: string, data: Partial<User>) {
+    const docRef = doc(db, "users", id);
+    await updateDoc(docRef, {
+        ...data,
+        updated_at: serverTimestamp(),
+    });
+}
+
+export async function deleteUserPermanent(id: string) {
+    const docRef = doc(db, "users", id);
+    await deleteDoc(docRef);
 }
 
 // --- Products ---
@@ -117,11 +159,10 @@ export async function getProducts() {
     });
 }
 
-export async function createProduct(data: Omit<Product, "id" | "created_at" | "is_archived" | "current_stock" | "average_cost">) {
+export async function createProduct(data: Omit<Product, "id" | "created_at" | "is_archived" | "current_stock">) {
     await addDoc(collection(db, "products"), {
         ...data,
         current_stock: 0, // Initial stock is 0, must be added via movement
-        average_cost: 0,
         created_at: serverTimestamp(),
         is_archived: false,
     });

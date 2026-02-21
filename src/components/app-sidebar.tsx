@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import {
   Camera01Icon,
   BarChartIcon,
@@ -15,16 +16,25 @@ import {
   GridViewIcon,
   Package01Icon,
   Archive02Icon,
+  ShoppingCart01Icon,
+  UserMultipleIcon,
   UserGroupIcon,
+  UserIcon,
   Search01Icon,
   Settings01Icon,
   SchoolReportCardIcon,
+  Sorting01Icon,
+  Home01Icon,
+  MoneyReceiveSquareIcon,
 } from "hugeicons-react"
 
 import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
+import { auth } from "@/lib/firebase/config"
+import { signOut } from "firebase/auth"
+import { useRouter } from "next/navigation"
 import {
   Sidebar,
   SidebarContent,
@@ -39,13 +49,18 @@ const data = {
   user: {
     name: "shadcn",
     email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
+    avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=100&auto=format&fit=crop",
   },
   navMain: [
     {
       title: "Dashboard",
       url: "/",
       icon: DashboardSquare01Icon,
+    },
+    {
+      title: "Product Menu",
+      url: "/menu",
+      icon: GridViewIcon,
     },
     {
       title: "Categories",
@@ -61,6 +76,36 @@ const data = {
       title: "Inventory",
       url: "/inventory",
       icon: Archive02Icon,
+    },
+    {
+      title: "Stock Transfers",
+      url: "/stock-transfers",
+      icon: Sorting01Icon,
+    },
+    {
+      title: "Purchases",
+      url: "/purchases",
+      icon: ShoppingCart01Icon,
+    },
+    {
+      title: "Suppliers",
+      url: "/suppliers",
+      icon: UserMultipleIcon,
+    },
+    {
+      title: "Customers",
+      url: "/customers",
+      icon: UserIcon,
+    },
+    {
+      title: "Sales",
+      url: "/sales",
+      icon: MoneyReceiveSquareIcon,
+    },
+    {
+      title: "Warehouses",
+      url: "/warehouses",
+      icon: Home01Icon,
     },
     {
       title: "Users",
@@ -105,6 +150,65 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const [mounted, setMounted] = React.useState(false)
+  const [user, setUser] = React.useState({
+    name: "User",
+    email: "",
+    avatar: "",
+  })
+  const router = useRouter()
+
+  React.useEffect(() => {
+    setMounted(true)
+    
+    // Get user from local storage
+    const storedAuth = localStorage.getItem("user_auth")
+    if (storedAuth) {
+      try {
+        const authData = JSON.parse(storedAuth)
+        if (authData.user_info) {
+          setUser({
+            name: authData.user_info.name || "User",
+            email: authData.email || "",
+            avatar: authData.user_info.avatar_url || `https://ui-avatars.com/api/?name=${authData.user_info.name}&background=random`,
+          })
+        }
+      } catch (e) {
+        console.error("Failed to parse auth data", e)
+      }
+    }
+  }, [])
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth)
+      localStorage.removeItem("user_auth")
+      router.push("/login")
+    } catch (error) {
+      console.error("Failed to sign out", error)
+    }
+  }
+
+  if (!mounted) {
+    return (
+      <Sidebar collapsible="offcanvas" {...props}>
+        <SidebarHeader>
+          <div className="flex items-center gap-2 px-4 py-3">
+             <div className="size-5 rounded-md bg-muted animate-pulse" />
+             <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+          </div>
+        </SidebarHeader>
+        <SidebarContent>
+          <div className="flex flex-col gap-4 p-4">
+            <div className="h-4 w-full rounded bg-muted animate-pulse" />
+            <div className="h-4 w-full rounded bg-muted animate-pulse" />
+            <div className="h-4 w-full rounded bg-muted animate-pulse" />
+          </div>
+        </SidebarContent>
+      </Sidebar>
+    )
+  }
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -114,10 +218,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <a href="/">
+              <Link href="/">
                 <SidebarLeft01Icon className="!size-5" />
                 <span className="text-base font-semibold italic tracking-tight">ANTIGRAVITY</span>
-              </a>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -128,7 +232,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={user} onLogout={handleLogout} />
       </SidebarFooter>
     </Sidebar>
   )
