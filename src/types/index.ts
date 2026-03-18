@@ -1,43 +1,43 @@
+// =============================================================================
+// ENUMS & UNION TYPES
+// =============================================================================
 
 export type Role = 'admin' | 'sale' | 'logistic';
+
+export type PaymentMethod = 'cash' | 'aba' | 'aclida' | 'wing';
+
+export type StockMovementType = 'stock_in' | 'stock_out' | 'adjustment' | 'return' | 'transfer';
+
+export type InvoiceStatus = 'paid' | 'not paid';
+
+// =============================================================================
+// USER & AUTH
+// =============================================================================
 
 export interface User {
   id: string;
   name: string;
   username: string;
   role: Role;
+  avatar_url?: string;
   created_at: Date;
   is_archived: boolean;
 }
 
-export interface sale_invoice {
+// =============================================================================
+// CUSTOMER & ORDER
+// =============================================================================
+
+export interface Customer {
   id: string;
-  customer_id: string;
-  items: [
-    {
-      stock_movement_id: string;
-      cost: number;
-      price: number;
-      product_id: string;
-      product_name: string;
-      product_barcode: string;
-      product_image?: string;
-      quantity: number;
-      discount: number;
-      total_price: number;
-    }
-  ]
-  sub_total: number;
-  discount: number;
-  tax: number;
-  total_price: number;
-  status: 'paid' | 'not paid';
-  payment_method: 'cash' | 'aba' | 'aclida' | 'wing';
-  warehouse_id: string;
-  created_by: string;
+  name: string;
+  phone: string;
+  location?: string;
+  avatar_url?: string;
   created_at: Date;
-  is_archived: boolean;
+  is_deleted: boolean;
 }
+
 export interface OrderHistory {
   id: string;
   sale_invoice_id: string;
@@ -49,15 +49,42 @@ export interface OrderHistory {
   is_archived: boolean;
 }
 
-export interface Customer {
-  id: string;
-  name: string;
-  phone: string;
-  location?: string;
-  avatar_url?: string;
-  is_deleted: boolean;
-  created_at: Date;
+// =============================================================================
+// SALES INVOICE
+// =============================================================================
+
+export interface SaleInvoiceItem {
+  stock_movement_id: string;
+  product_id: string;
+  product_name: string;
+  product_barcode: string;
+  product_image?: string;
+  quantity: number;
+  cost: number;
+  price: number;
+  discount: number;
+  total_price: number;
 }
+
+export interface SaleInvoice {
+  id: string;
+  customer_id: string;
+  warehouse_id: string;
+  items: SaleInvoiceItem[];
+  sub_total: number;
+  discount: number;
+  tax: number;
+  total_price: number;
+  status: InvoiceStatus;
+  payment_method: PaymentMethod;
+  created_by: string;
+  created_at: Date;
+  is_archived: boolean;
+}
+
+// =============================================================================
+// PRODUCT & CATEGORY
+// =============================================================================
 
 export interface Category {
   id: string;
@@ -74,8 +101,24 @@ export interface Product {
   images: string[];
   thumbnails: string[];
   category_id?: string;
-  current_stock: number;
   cost_recommand?: number;
+  created_at: Date;
+  is_archived: boolean;
+}
+
+export interface ProductWithStock extends Product {
+  current_stock: number;
+}
+
+// =============================================================================
+// WAREHOUSE & STOCK
+// =============================================================================
+
+export interface Warehouse {
+  id: string;
+  name: string;
+  address?: string;
+  phone?: string;
   created_at: Date;
   is_archived: boolean;
 }
@@ -87,44 +130,36 @@ export interface Stock {
   warehouse_id: string;
   product: Product;
   cost: number;
-  date: Date;
   quantity: number;
-  is_archived: boolean;
+  date: Date;
   created_by: string;
   created_at: Date;
+  is_archived: boolean;
 }
-
-export type StockMovementType = 'stock_in' | 'stock_out' | 'adjustment' | 'return' | 'transfer';
 
 export interface StockMovement {
   id: string;
   product_id: string;
   type: StockMovementType;
   quantity: number;
-  unit_cost?: number; // Only for stock_in usually
-  total_cost?: number; // Optional
+  unit_cost?: number;
+  total_cost?: number;
   from_warehouse_id?: string;
   to_warehouse_id?: string;
   previous_stock_level: number;
   new_stock_level: number;
   note?: string;
-  reference?: string; // e.g. PO number
-  created_by: string; // user id
-  date: Date; // date of stock movement
+  reference?: string;
+  created_by: string;
+  date: Date;
   created_at: Date;
 }
 
-export interface Warehouse {
-  id: string;
-  name: string;
-  address?: string;
-  phone?: string;
-  created_at: Date;
-  is_archived: boolean;
-}
+// =============================================================================
+// SUPPLIER & PURCHASE
+// =============================================================================
 
-
-export interface supplier {
+export interface Supplier {
   id: string;
   name: string;
   phone?: string;
@@ -134,37 +169,39 @@ export interface supplier {
   is_deleted: boolean;
 }
 
-export interface purchase_payment {
-  id: string;
-  purchase_id: string;
-  payment_method: string; //Cash , ABA Bank, ACLIDA BANK,
-  amount: number;
-  transaction_ref: string;
-  is_deleted: boolean;
-  created_at: Date;
-}
-export interface purchase {
+export interface Purchase {
   id: string;
   supplier_id: string;
   reference_no: string;
   warehouse_id: string;
-  created_by: string;
-  date: Date;
   sub_total: number;
   discount: number;
   tax: number;
   total_price: number;
-  is_deleted: boolean;
+  date: Date;
+  created_by: string;
+  created_at: Date;
   updated_by: string;
   updated_at: Date;
+  is_deleted: boolean;
+}
+
+export interface PurchaseItem {
+  id: string;
+  purchase_id: string;
+  product_id: string;
+  quantity: number;
+  cost: number;
+  total: number;
   created_at: Date;
 }
-export interface purchase_item {
-  id: string,
-  purchase_id: string,
-  product_id: string,
-  quantity: number,
-  cost: number,
-  total: number,
-  created_at: Date,
+
+export interface PurchasePayment {
+  id: string;
+  purchase_id: string;
+  payment_method: string;
+  amount: number;
+  transaction_ref: string;
+  created_at: Date;
+  is_deleted: boolean;
 }

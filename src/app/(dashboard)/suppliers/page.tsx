@@ -25,7 +25,7 @@ import {
   updateSupplier,
   deleteSupplier,
 } from "@/lib/firebase/supplier-actions";
-import { supplier } from "@/types";
+import { Supplier } from "@/types";
 import {
   Sheet,
   SheetContent,
@@ -51,15 +51,15 @@ import { format } from "date-fns";
 
 export default function SuppliersPage() {
   // Data
-  const [suppliers, setSuppliers] = useState<supplier[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Form state
-  const [editingSupplier, setEditingSupplier] = useState<supplier | null>(null);
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Detail sheet
-  const [viewingSupplier, setViewingSupplier] = useState<supplier | null>(null);
+  const [viewingSupplier, setViewingSupplier] = useState<Supplier | null>(null);
 
   // Form fields
   const [name, setName] = useState("");
@@ -137,7 +137,7 @@ export default function SuppliersPage() {
     setEditingSupplier(null);
   }
 
-  function openEdit(s: supplier) {
+  function openEdit(s: Supplier) {
     setEditingSupplier(s);
     setName(s.name);
     setPhone(s.phone || "");

@@ -79,7 +79,7 @@ export async function getUsers() {
     });
 }
 
-export async function createUser(data: { name: string; username: string; role: Role; email: string; password?: string }) {
+export async function createUser(data: { name: string; username: string; role: Role; email: string; password?: string; avatar_url?: string }) {
     // To create a user without logging out the current admin session,
     // we use a secondary Firebase app instance.
     const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
@@ -103,6 +103,7 @@ export async function createUser(data: { name: string; username: string; role: R
             username: data.username,
             email: data.email,
             role: data.role,
+            avatar_url: data.avatar_url || "",
             created_at: serverTimestamp(),
             is_archived: false,
         });
@@ -159,10 +160,9 @@ export async function getProducts() {
     });
 }
 
-export async function createProduct(data: Omit<Product, "id" | "created_at" | "is_archived" | "current_stock">) {
+export async function createProduct(data: Omit<Product, "id" | "created_at" | "is_archived">) {
     await addDoc(collection(db, "products"), {
         ...data,
-        current_stock: 0, // Initial stock is 0, must be added via movement
         created_at: serverTimestamp(),
         is_archived: false,
     });

@@ -16,7 +16,8 @@ import {
 } from "hugeicons-react";
 import Image from "next/image";
 import { getProducts, getCategories, archiveProduct } from "@/lib/firebase/actions";
-import { Product, Category } from "@/types";
+import { getStocks } from "@/lib/firebase/stock-actions";
+import { Product, Category, ProductWithStock } from "@/types";
 import {
   Sheet,
   SheetContent,
@@ -42,24 +43,36 @@ import { getOptimizedImageUrl } from "@/lib/utils";
 import { toast } from "sonner";
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductWithStock[]>([]);
   const [categories, setCategories] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
+  const [viewingProduct, setViewingProduct] = useState<ProductWithStock | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   async function fetchData() {
     try {
       setLoading(true);
-      const [prods, cats] = await Promise.all([getProducts(), getCategories()]);
-      setProducts(prods);
+      const [prods, cats, allStocks] = await Promise.all([getProducts(), getCategories(), getStocks()]);
       
       const catMap: Record<string, string> = {};
       cats.forEach((c) => (catMap[c.id] = c.name));
       setCategories(catMap);
+
+      // Dynamically compute current_stock from stocks records
+      const stockMap: Record<string, number> = {};
+      allStocks.forEach(s => {
+          stockMap[s.product_id] = (stockMap[s.product_id] || 0) + s.quantity;
+      });
+
+      const productsWithStock = prods.map(p => ({
+          ...p,
+          current_stock: stockMap[p.id] || 0
+      }));
+
+      setProducts(productsWithStock);
     } catch (error) {
       console.error(error);
     } finally {
@@ -90,7 +103,7 @@ export default function ProductsPage() {
     }
   };
 
-  const handleRowClick = (product: Product) => {
+  const handleRowClick = (product: ProductWithStock) => {
     setViewingProduct(product);
     setSelectedImageIndex(0);
     setDetailOpen(true);

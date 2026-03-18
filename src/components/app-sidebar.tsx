@@ -35,6 +35,8 @@ import { NavUser } from "@/components/nav-user"
 import { auth } from "@/lib/firebase/config"
 import { signOut } from "firebase/auth"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/hooks/useAuth"
+import { Role } from "@/types"
 import {
   Sidebar,
   SidebarContent,
@@ -45,6 +47,8 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
+// Define which roles can access each nav item.
+// If allowedRoles is undefined/empty, all roles can access it.
 const data = {
   user: {
     name: "shadcn",
@@ -56,61 +60,73 @@ const data = {
       title: "Dashboard",
       url: "/",
       icon: DashboardSquare01Icon,
+      allowedRoles: ["admin"] as Role[],
     },
     {
       title: "Product Menu",
       url: "/menu",
       icon: GridViewIcon,
+      // All roles can access Product Menu
     },
     {
       title: "Categories",
       url: "/categories",
       icon: GridViewIcon,
+      allowedRoles: ["admin"] as Role[],
     },
     {
       title: "Products",
       url: "/products",
       icon: Package01Icon,
+      allowedRoles: ["admin"] as Role[],
     },
     {
       title: "Inventory",
       url: "/inventory",
       icon: Archive02Icon,
+      allowedRoles: ["admin"] as Role[],
     },
     {
       title: "Stock Transfers",
       url: "/stock-transfers",
       icon: Sorting01Icon,
+      allowedRoles: ["admin"] as Role[],
     },
     {
       title: "Purchases",
       url: "/purchases",
       icon: ShoppingCart01Icon,
+      allowedRoles: ["admin"] as Role[],
     },
     {
       title: "Suppliers",
       url: "/suppliers",
       icon: UserMultipleIcon,
+      allowedRoles: ["admin"] as Role[],
     },
     {
       title: "Customers",
       url: "/customers",
       icon: UserIcon,
+      allowedRoles: ["admin"] as Role[],
     },
     {
       title: "Sales",
       url: "/sales",
       icon: MoneyReceiveSquareIcon,
+      // All roles can access Sales
     },
     {
       title: "Warehouses",
       url: "/warehouses",
       icon: Home01Icon,
+      allowedRoles: ["admin"] as Role[],
     },
     {
       title: "Users",
       url: "/users",
       icon: UserGroupIcon,
+      allowedRoles: ["admin"] as Role[],
     },
   ],
   navSecondary: [
@@ -157,6 +173,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     avatar: "",
   })
   const router = useRouter()
+  const { role } = useAuth()
 
   React.useEffect(() => {
     setMounted(true)
@@ -188,6 +205,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       console.error("Failed to sign out", error)
     }
   }
+
+  // Filter nav items based on user role
+  const filteredNavMain = React.useMemo(() => {
+    if (!role) return data.navMain // Show all while loading
+    return data.navMain.filter((item) => {
+      // If no allowedRoles defined, all roles can access
+      if (!item.allowedRoles || item.allowedRoles.length === 0) return true
+      // Check if user's role is in the allowed list
+      return item.allowedRoles.includes(role)
+    })
+  }, [role])
 
   if (!mounted) {
     return (
@@ -227,7 +255,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <NavMain items={filteredNavMain} />
         <NavDocuments items={data.documents} />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
@@ -237,3 +265,4 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     </Sidebar>
   )
 }
+

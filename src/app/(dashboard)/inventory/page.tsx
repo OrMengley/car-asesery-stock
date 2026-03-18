@@ -1309,7 +1309,7 @@ export default function InventoryPage() {
       <Sheet open={detailOpen} onOpenChange={setDetailOpen}>
         <SheetContent
           side="right"
-          className="sm:max-w-[480px] p-0 flex flex-col overflow-hidden"
+          className="sm:max-w-[480px] p-0 flex flex-col overflow-y-scroll"
         >
           <SheetHeader className="p-5 pb-3 border-b bg-primary/5 shrink-0">
             <SheetTitle className="text-lg font-bold flex items-center gap-2">

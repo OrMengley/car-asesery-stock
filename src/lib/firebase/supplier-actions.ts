@@ -8,7 +8,7 @@ import {
     query,
     serverTimestamp,
 } from "firebase/firestore";
-import { supplier } from "@/types";
+import { Supplier } from "@/types";
 
 // --- Suppliers ---
 
@@ -22,13 +22,13 @@ export async function getSuppliers() {
                 id: d.id,
                 ...data,
                 created_at: data.created_at?.toDate() || new Date(),
-            } as supplier;
+            } as Supplier;
         })
         .filter((s) => !s.is_deleted)
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
-export async function createSupplier(data: Omit<supplier, "id" | "created_at" | "is_deleted">) {
+export async function createSupplier(data: Omit<Supplier, "id" | "created_at" | "is_deleted">) {
     // Filter out undefined values — Firestore rejects them
     const cleanData = Object.fromEntries(
         Object.entries(data).filter(([, v]) => v !== undefined)
@@ -41,7 +41,7 @@ export async function createSupplier(data: Omit<supplier, "id" | "created_at" | 
     return docRef.id;
 }
 
-export async function updateSupplier(id: string, data: Partial<supplier>) {
+export async function updateSupplier(id: string, data: Partial<Supplier>) {
     const cleanData = Object.fromEntries(
         Object.entries(data).filter(([, v]) => v !== undefined)
     );

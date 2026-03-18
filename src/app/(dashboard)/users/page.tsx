@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { 
@@ -187,9 +188,19 @@ export default function UsersPage() {
                   <TableRow key={user.id} className="hover:bg-muted/30 transition-colors group">
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-xs">
-                          {user.name.charAt(0).toUpperCase()}
-                        </div>
+                        {user.avatar_url ? (
+                          <Image
+                            src={user.avatar_url}
+                            alt={user.name}
+                            width={32}
+                            height={32}
+                            className="size-8 rounded-full object-cover shrink-0 shadow-sm"
+                          />
+                        ) : (
+                          <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-xs">
+                            {user.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
                         <span className="font-bold text-sm tracking-tight">{user.name}</span>
                       </div>
                     </TableCell>
@@ -255,7 +266,7 @@ export default function UsersPage() {
         setSheetOpen(val);
         if (!val) setEditingUser(null);
       }}>
-        <SheetContent side="right" className="sm:max-w-[500px] p-0 flex flex-col overflow-hidden">
+        <SheetContent side="right" className="sm:max-w-[500px] p-0">
           <SheetHeader className="p-6 pb-2 shrink-0 bg-muted/20 border-b">
             <SheetTitle className="text-xl font-bold flex items-center gap-2">
               {editingUser ? <PencilEdit01Icon className="size-6 text-primary" /> : <UserAdd01Icon className="size-6 text-primary" />}

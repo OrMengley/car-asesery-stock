@@ -47,6 +47,16 @@ export async function createSale(data: {
                 where("is_archived", "==", false)
             );
             const stockSnaps = await getDocs(stocksQuery);
+            
+            // Also fetch all product stocks to get accurate overall total for movement tracking
+            const allStocksQuery = query(
+                collection(db, "stocks"),
+                where("product_id", "==", item.product_id),
+                where("is_archived", "==", false)
+            );
+            const allStockSnaps = await getDocs(allStocksQuery);
+            let productTotalStock = 0;
+            allStockSnaps.forEach(d => productTotalStock += d.data().quantity);
             const availableStocks = stockSnaps.docs
                 .map(d => ({ id: d.id, ...d.data() } as Stock))
                 .filter(s => s.quantity > 0)
@@ -78,8 +88,8 @@ export async function createSale(data: {
                     quantity: takeQty,
                     unit_cost: stockRecord.cost,
                     from_warehouse_id: data.warehouse_id,
-                    previous_stock_level: productData.current_stock,
-                    new_stock_level: productData.current_stock - takeQty,
+                    previous_stock_level: productTotalStock,
+                    new_stock_level: productTotalStock - takeQty,
                     note: `Sale to customer ${data.customer_id}`,
                     created_by: data.created_by,
                     date: Timestamp.fromDate(now),
@@ -104,14 +114,8 @@ export async function createSale(data: {
 
                 subTotal += (item.price * takeQty);
                 remainingToDeduct -= takeQty;
-                productData.current_stock -= takeQty; // Update local tracker for next batch
+                productTotalStock -= takeQty; // Update local tracker for next batch
             }
-
-            // Update Product Total Stock
-            transaction.update(productRef, {
-                current_stock: productData.current_stock,
-                updated_at: serverTimestamp(),
-            });
         }
 
         // 3. Create Sale Invoice

@@ -26,10 +26,11 @@ import {
 } from "hugeicons-react";
 import Image from "next/image";
 import { getProducts } from "@/lib/firebase/actions";
-import { getPurchases, createPurchase, deletePurchase, getPurchaseItems } from "@/lib/firebase/purchase-actions";
+import { getStocks } from "@/lib/firebase/stock-actions";
+import { createPurchase, deletePurchase, getPurchases, getPurchaseItems } from "@/lib/firebase/purchase-actions";
 import { getSuppliers } from "@/lib/firebase/supplier-actions";
 import { getWarehouses } from "@/lib/firebase/warehouse-actions";
-import { Product, purchase, purchase_item, supplier, Warehouse } from "@/types";
+import { Product, Purchase, PurchaseItem, Supplier, Warehouse, Stock, ProductWithStock } from "@/types";
 import {
   Sheet,
   SheetContent,
@@ -75,10 +76,10 @@ interface PurchaseItemDraft {
 // ─── Main Page ───────────────────────────────────────────
 export default function PurchasePage() {
   // Data
-  const [purchases, setPurchases] = useState<purchase[]>([]);
-  const [allPurchaseItems, setAllPurchaseItems] = useState<purchase_item[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [suppliers, setSuppliers] = useState<supplier[]>([]);
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [allPurchaseItems, setAllPurchaseItems] = useState<PurchaseItem[]>([]);
+  const [products, setProducts] = useState<ProductWithStock[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -87,8 +88,8 @@ export default function PurchasePage() {
   const [creating, setCreating] = useState(false);
 
   // Detail sheet
-  const [viewingPurchase, setViewingPurchase] = useState<purchase | null>(null);
-  const [viewingItems, setViewingItems] = useState<purchase_item[]>([]);
+  const [viewingPurchase, setViewingPurchase] = useState<Purchase | null>(null);
+  const [viewingItems, setViewingItems] = useState<PurchaseItem[]>([]);
 
   // Form fields
   const [selectedSupplierId, setSelectedSupplierId] = useState("");
@@ -112,20 +113,32 @@ export default function PurchasePage() {
 
   // ─── Fetch data ─────────────────────────────────────────
   async function fetchData() {
-    setLoading(true);
     try {
-      const [purchaseData, productData, itemData, supplierData, warehouseData] = await Promise.all([
+      setLoading(true);
+      const [p, items, sups, whs, prods, stks] = await Promise.all([
         getPurchases(),
-        getProducts(),
         getPurchaseItems(),
         getSuppliers(),
         getWarehouses(),
+        getProducts(),
+        getStocks(),
       ]);
-      setPurchases(purchaseData);
-      setProducts(productData);
-      setAllPurchaseItems(itemData);
-      setSuppliers(supplierData);
-      setWarehouses(warehouseData);
+
+      const stockMap: Record<string, number> = {};
+      stks.forEach(s => {
+          stockMap[s.product_id] = (stockMap[s.product_id] || 0) + s.quantity;
+      });
+
+      const productsWithStock = prods.map(prod => ({
+          ...prod,
+          current_stock: stockMap[prod.id] || 0
+      }));
+
+      setPurchases(p);
+      setAllPurchaseItems(items);
+      setSuppliers(sups);
+      setWarehouses(whs);
+      setProducts(productsWithStock);
     } catch (error) {
       console.error("Failed to load data:", error);
       toast.error("Failed to load purchase data");
@@ -146,7 +159,7 @@ export default function PurchasePage() {
   }, [products]);
 
   const supplierMap = useMemo(() => {
-    const map: Record<string, supplier> = {};
+    const map: Record<string, Supplier> = {};
     suppliers.forEach((s) => (map[s.id] = s));
     return map;
   }, [suppliers]);
@@ -337,7 +350,7 @@ export default function PurchasePage() {
   }
 
   // ─── View purchase detail ──────────────────────────────
-  async function handleViewPurchase(p: purchase) {
+  async function handleViewPurchase(p: Purchase) {
     setViewingPurchase(p);
     const items = allPurchaseItems.filter((i) => i.purchase_id === p.id);
     setViewingItems(items);

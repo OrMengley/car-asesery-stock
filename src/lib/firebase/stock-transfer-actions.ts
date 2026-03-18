@@ -111,14 +111,24 @@ export async function createStockTransfer(data: {
 
         // Create Movement Record
         const movementRef = doc(collection(db, "stock_movements"));
+        // Calculate global stock total dynamically since we don't store it on the product anymore
+        const allProductStocksQuery = query(
+            collection(db, "stocks"),
+            where("product_id", "==", data.product_id),
+            where("is_archived", "==", false)
+        );
+        const allStockSnaps = await getDocs(allProductStocksQuery);
+        let productTotalStock = 0;
+        allStockSnaps.forEach(d => productTotalStock += d.data().quantity);
+
         const movementDoc = {
             product_id: data.product_id,
             type: "transfer",
             quantity: data.quantity,
             from_warehouse_id: data.from_warehouse_id,
             to_warehouse_id: data.to_warehouse_id,
-            previous_stock_level: productData.current_stock || 0,
-            new_stock_level: productData.current_stock || 0,
+            previous_stock_level: productTotalStock,
+            new_stock_level: productTotalStock,
             note: data.note || "Stock transfer",
             created_by: data.created_by,
             date: Timestamp.fromDate(now),

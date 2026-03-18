@@ -51,8 +51,15 @@ export async function adjustStock(data: {
         if (!productSnap.exists()) throw new Error("Product not found");
         const productData = productSnap.data() as Product;
 
+        const allStocksQuery = query(
+            collection(db, "stocks"),
+            where("product_id", "==", data.product_id),
+            where("is_archived", "==", false)
+        );
+        const allStockSnaps = await getDocs(allStocksQuery);
+        let previousTotalStock = 0;
+        allStockSnaps.forEach(doc => previousTotalStock += doc.data().quantity);
         const now = new Date();
-        const previousTotalStock = productData.current_stock || 0;
 
         if (data.type === 'down') {
             // FIFO Deduction
@@ -88,7 +95,6 @@ export async function adjustStock(data: {
 
             const newTotalStock = previousTotalStock - data.quantity;
             transaction.update(productRef, {
-                current_stock: newTotalStock,
                 updated_at: serverTimestamp(),
             });
 
@@ -145,7 +151,6 @@ export async function adjustStock(data: {
 
             const newTotalStock = previousTotalStock + data.quantity;
             transaction.update(productRef, {
-                current_stock: newTotalStock,
                 updated_at: serverTimestamp(),
             });
 

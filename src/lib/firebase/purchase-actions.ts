@@ -12,7 +12,7 @@ import {
     Timestamp,
     runTransaction,
 } from "firebase/firestore";
-import { purchase, purchase_item, purchase_payment, Product, Stock, StockMovement } from "@/types";
+import { Purchase, PurchaseItem, PurchasePayment, Product, Stock, StockMovement } from "@/types";
 
 // --- Purchases ---
 
@@ -28,7 +28,7 @@ export async function getPurchases() {
                 date: data.date?.toDate() || new Date(),
                 updated_at: data.updated_at?.toDate() || new Date(),
                 created_at: data.created_at?.toDate() || new Date(),
-            } as purchase;
+            } as Purchase;
         })
         .filter((p) => !p.is_deleted)
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -45,12 +45,12 @@ export async function getPurchaseById(id: string) {
         date: data.date?.toDate() || new Date(),
         updated_at: data.updated_at?.toDate() || new Date(),
         created_at: data.created_at?.toDate() || new Date(),
-    } as purchase;
+    } as Purchase;
 }
 
 export async function createPurchase(
-    purchaseData: Omit<purchase, "id" | "created_at" | "updated_at" | "is_deleted">,
-    items: Omit<purchase_item, "id" | "purchase_id" | "created_at">[]
+    purchaseData: Omit<Purchase, "id" | "created_at" | "updated_at" | "is_deleted">,
+    items: Omit<PurchaseItem, "id" | "purchase_id" | "created_at">[]
 ) {
     // 0. PRE-TRANSACTION: Find potential existing stock records to update
     const existingStockMap: Record<string, string> = {}; // "pid_cost" -> stockDocId
@@ -133,12 +133,18 @@ export async function createPurchase(
             });
 
             // ii. Update Product Stock
-            const previousStockTotal = productData.current_stock || 0;
+            const allStocksQuery = query(
+                collection(db, "stocks"),
+                where("product_id", "==", item.product_id),
+                where("is_archived", "==", false)
+            );
+            const allStockSnaps = await getDocs(allStocksQuery);
+            let previousStockTotal = 0;
+            allStockSnaps.forEach(d => previousStockTotal += d.data().quantity);
             const newStockTotal = previousStockTotal + item.quantity;
 
             const productRef = doc(db, "products", item.product_id);
             transaction.update(productRef, {
-                current_stock: newStockTotal,
                 cost_recommand: item.cost, // Update recommended cost to latest purchase price
                 updated_at: serverTimestamp(),
             });
@@ -203,8 +209,7 @@ export async function createPurchase(
             };
             transaction.set(movementRef, movementDoc);
 
-            // Update local memory for same product in same purchase
-            productSnapshots[item.product_id].data.current_stock = newStockTotal;
+            // Note: We don't need to update product's local memory current_stock anymore
         }
 
         return purchaseRef.id;
@@ -213,7 +218,7 @@ export async function createPurchase(
 
 export async function updatePurchase(
     id: string,
-    purchaseData: Partial<purchase>
+    purchaseData: Partial<Purchase>
 ) {
     const docRef = doc(db, "purchases", id);
     await updateDoc(docRef, {
@@ -241,7 +246,7 @@ export async function getPurchaseItems(purchaseId?: string) {
             id: d.id,
             ...data,
             created_at: data.created_at?.toDate() || new Date(),
-        } as purchase_item;
+        } as PurchaseItem;
     });
 
     if (purchaseId) {
@@ -262,7 +267,7 @@ export async function getPurchasePayments(purchaseId?: string) {
                 id: d.id,
                 ...data,
                 created_at: data.created_at?.toDate() || new Date(),
-            } as purchase_payment;
+            } as PurchasePayment;
         })
         .filter((p) => !p.is_deleted);
 
@@ -273,7 +278,7 @@ export async function getPurchasePayments(purchaseId?: string) {
 }
 
 export async function createPurchasePayment(
-    data: Omit<purchase_payment, "id" | "created_at" | "is_deleted">
+    data: Omit<PurchasePayment, "id" | "created_at" | "is_deleted">
 ) {
     await addDoc(collection(db, "purchase_payments"), {
         ...data,

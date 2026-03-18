@@ -21,6 +21,7 @@ import {
   MoneyAdd01Icon,
   CheckmarkCircle01Icon,
   UserIcon,
+  PrinterIcon,
 } from "hugeicons-react";
 import Image from "next/image";
 import { getProducts, getUsers } from "@/lib/firebase/actions";
@@ -32,7 +33,7 @@ import {
 } from "@/lib/firebase/sale-actions";
 import { getCustomers, createCustomer } from "@/lib/firebase/customer-actions";
 import { getWarehouses } from "@/lib/firebase/warehouse-actions";
-import { Product, sale_invoice, Customer, Warehouse, Stock, User } from "@/types";
+import { Product, SaleInvoice, Customer, Warehouse, Stock, User } from "@/types";
 import {
   Sheet,
   SheetContent,
@@ -64,6 +65,7 @@ import {
 import { getOptimizedImageUrl } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import JsBarcode from "jsbarcode";
 
 // ─── Types for local form state ──────────────────────────
 interface StockBatch {
@@ -87,7 +89,7 @@ interface SaleItemDraft {
 // ─── Main Page ───────────────────────────────────────────
 export default function SalesPage() {
   // Data
-  const [invoices, setInvoices] = useState<sale_invoice[]>([]);
+  const [invoices, setInvoices] = useState<SaleInvoice[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -102,7 +104,7 @@ export default function SalesPage() {
   const [creating, setCreating] = useState(false);
 
   // Detail sheet
-  const [viewingInvoice, setViewingInvoice] = useState<sale_invoice | null>(
+  const [viewingInvoice, setViewingInvoice] = useState<SaleInvoice | null>(
     null
   );
 
@@ -455,6 +457,296 @@ export default function SalesPage() {
     }
   }
 
+  // ─── Print invoice (58mm thermal receipt) ───────────────
+  function handlePrintInvoice(inv: SaleInvoice) {
+    const customer = customerMap[inv.customer_id];
+    const seller = userMap[inv.created_by];
+    const warehouse = warehouseMap[inv.warehouse_id];
+    const invoiceNo = inv.id.slice(0, 8).toUpperCase();
+    const dateStr = format(new Date(inv.created_at), "dd MMM yyyy, HH:mm");
+
+    // Generate barcode SVG locally using JsBarcode
+    let barcodeSvg = "";
+    try {
+      const svgNode = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      JsBarcode(svgNode, invoiceNo, {
+        format: "CODE128",
+        width: 1.5,
+        height: 40,
+        displayValue: true,
+        fontSize: 10,
+        margin: 0,
+        textMargin: 2,
+      });
+      barcodeSvg = svgNode.outerHTML;
+    } catch (err) {
+      console.error("Barcode generation failed:", err);
+    }
+
+    const itemsHtml = inv.items
+      .map(
+        (item) => `
+        <tr>
+          <td style="text-align:left;padding:2px 0;font-size:11px;">${item.product_name}</td>
+          <td style="text-align:center;padding:2px 0;font-size:11px;">${item.quantity}</td>
+          <td style="text-align:right;padding:2px 0;font-size:11px;">$${item.price.toFixed(2)}</td>
+          <td style="text-align:right;padding:2px 0;font-size:11px;">$${item.total_price.toFixed(2)}</td>
+        </tr>
+        ${item.discount > 0 ? `<tr><td colspan="4" style="text-align:right;font-size:9px;color:#888;padding:0 0 2px 0;">disc: -$${item.discount.toFixed(2)}/ea</td></tr>` : ""}
+      `
+      )
+      .join("");
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Invoice #${invoiceNo}</title>
+        <style>
+          @page {
+            size: 80mm auto;
+            margin: 0;
+          }
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          body {
+            font-family: 'Courier New', Courier, monospace;
+            width: 80mm;
+            padding: 1mm;
+            font-size: 12px;
+            color: #000;
+            background: #fff;
+          }
+          .center { text-align: center; }
+          .right { text-align: right; }
+          .bold { font-weight: bold; }
+          .divider {
+            border: none;
+            border-top: 1px dashed #000;
+            margin: 6px 0;
+          }
+          .double-divider {
+            border: none;
+            border-top: 2px double #000;
+            margin: 6px 0;
+          }
+          .header-title {
+            font-size: 16px;
+            font-weight: bold;
+            letter-spacing: 1px;
+          }
+          .header-sub {
+            font-size: 10px;
+            color: #555;
+            margin-top: 2px;
+          }
+          .info-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            padding: 1px 0;
+          }
+          .info-label {
+            color: #555;
+          }
+          .info-value {
+            font-weight: bold;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+          thead th {
+            text-align: left;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            padding: 3px 0;
+            border-bottom: 1px solid #000;
+          }
+          .total-section .row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            padding: 2px 0;
+          }
+          .total-section .grand-total {
+            display: flex;
+            justify-content: space-between;
+            font-size: 15px;
+            font-weight: bold;
+            padding: 4px 0;
+          }
+          .footer {
+            text-align: center;
+            font-size: 10px;
+            color: #555;
+            margin-top: 8px;
+          }
+          .footer .thanks {
+            font-size: 12px;
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 2px;
+          }
+          .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            border: 1px solid #000;
+            border-radius: 3px;
+            margin-top: 4px;
+          }
+          @media print {
+            body {
+              width: 58mm;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <!-- Header -->
+        <div class="center">
+          <div class="header-title">CAR ACCESSORIES</div>
+          ${seller?.avatar_url ? `
+          <div>
+            <img src="${seller.avatar_url}" alt="" style="width: 50px; height: 50px; border-radius: 50%;" />
+          </div>` : ""}
+          <div class="header-sub">${seller?.name || "Unknown"}</div>
+          ${warehouse ? `<div class="header-sub">${warehouse.name}</div>` : ""}
+        </div>
+
+        <hr class="double-divider">
+
+        <!-- Invoice Info -->
+        <div class="info-row">
+          <span class="info-label">Invoice:</span>
+          <span class="info-value">#${invoiceNo}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Date:</span>
+          <span class="info-value">${dateStr}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Customer:</span>
+          <span class="info-value">${customer?.name || "Walk-in"}</span>
+        </div>
+        ${customer?.phone ? `<div class="info-row"><span class="info-label">Phone:</span><span class="info-value">${customer.phone}</span></div>` : ""}
+        <div class="info-row">
+          <span class="info-label">Seller:</span>
+          <span class="info-value">${seller?.name || "Unknown"}</span>
+        </div>
+
+        <hr class="divider">
+
+        <!-- Items -->
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:left;">Item</th>
+              <th style="text-align:center;">Qty</th>
+              <th style="text-align:right;">Price</th>
+              <th style="text-align:right;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+
+        <hr class="divider">
+
+        <!-- Totals -->
+        <div class="total-section">
+          <div class="row">
+            <span>Sub Total</span>
+            <span class="bold">$${inv.sub_total.toFixed(2)}</span>
+          </div>
+          ${inv.discount > 0 ? `<div class="row"><span>Discount</span><span class="bold">-$${inv.discount.toFixed(2)}</span></div>` : ""}
+          ${inv.tax > 0 ? `<div class="row"><span>Tax</span><span class="bold">+$${inv.tax.toFixed(2)}</span></div>` : ""}
+        </div>
+
+        <hr class="double-divider">
+
+        <div class="total-section">
+          <div class="grand-total">
+            <span>TOTAL</span>
+            <span>$${inv.total_price.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- Payment Info -->
+        <div class="info-row">
+          <span class="info-label">Payment:</span>
+          <span class="info-value" style="text-transform:uppercase;">${inv.payment_method}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Status:</span>
+          <span class="info-value" style="text-transform:uppercase;">${inv.status}</span>
+        </div>
+
+        <hr class="divider">
+
+        <!-- Barcode -->
+        <div class="center" style="margin:8px 0;">
+          ${barcodeSvg}
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+          <div class="thanks">Thank You!</div>
+          <div>Please keep this receipt for your records</div>
+          
+          <div class="double-divider"></div>
+          <div class="info-row">
+            <span class="info-label">Tech By :</span>
+            <span class="info-value">Dambang Tech Stack</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Telegram contact :</span>
+            <span class="info-value">+855 98943324</span>
+            
+          </div>
+          <div class="info-row">
+            <span class="info-label">another line:</span>
+            <span class="info-value">+855 187166671</span>
+            
+          </div>
+          <div style="margin-top:6px;">
+            <img 
+              src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent("https://t.me/ORMengley")}" 
+              alt="QR Code" 
+              style="width:60px;height:60px;" 
+            />
+          </div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.print();
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    const printWindow = window.open("", "_blank", "width=350,height=600");
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
+    } else {
+      toast.error("Please allow pop-ups to print the invoice");
+    }
+  }
+
   // ─── Loading state ─────────────────────────────────────
   if (loading) {
     return (
@@ -735,10 +1027,11 @@ export default function SalesPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50"
-                        onClick={() => handleDelete(inv.id)}
+                        className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/50"
+                        onClick={() => handlePrintInvoice(inv)}
+                        title="Print Invoice"
                       >
-                        <Delete01Icon className="h-4 w-4" />
+                        <PrinterIcon className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>
@@ -806,7 +1099,7 @@ export default function SalesPage() {
       <Sheet open={createOpen} onOpenChange={setCreateOpen}>
         <SheetContent
           side="right"
-          className="!w-full sm:!max-w-2xl p-0 flex flex-col"
+          className="!w-full sm:!max-w-5xl p-0 flex flex-col"
         >
           <SheetHeader className="px-6 pt-6 pb-4 border-b bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 shrink-0">
             <SheetTitle className="flex items-center gap-2 text-lg">
@@ -1504,15 +1797,11 @@ export default function SalesPage() {
               {/* Bottom actions */}
               <div className="p-6 border-t bg-muted/30 shrink-0 flex gap-3">
                 <Button
-                  variant="outline"
-                  className="flex-1 h-11 gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 dark:border-red-800 dark:hover:bg-red-950/50"
-                  onClick={() => {
-                    handleDelete(viewingInvoice.id);
-                    setViewingInvoice(null);
-                  }}
+                  className="flex-1 h-11 gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25"
+                  onClick={() => handlePrintInvoice(viewingInvoice)}
                 >
-                  <Delete01Icon className="h-4 w-4" />
-                  Archive
+                  <PrinterIcon className="h-4 w-4" />
+                  Print Invoice
                 </Button>
               </div>
             </>
