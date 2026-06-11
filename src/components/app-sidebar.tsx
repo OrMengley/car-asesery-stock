@@ -87,6 +87,12 @@ const data = {
       allowedRoles: ["admin"] as Role[],
     },
     {
+      title: "Inventory On Hand",
+      url: "/inventory_on_hand",
+      icon: Package01Icon,
+      // Accessible to roles that manage physical stock, e.g. logistics or all
+    },
+    {
       title: "Stock Transfers",
       url: "/stock-transfers",
       icon: Sorting01Icon,

@@ -11,7 +11,7 @@ import {
 import { useAuth } from "@/hooks/useAuth"
 
 // Pages accessible by sale and logistic roles
-const RESTRICTED_ROLE_ALLOWED_PATHS = ["/sales", "/menu"]
+const RESTRICTED_ROLE_ALLOWED_PATHS = ["/sales", "/menu", "/inventory_on_hand"]
 
 export default function DashboardLayout({
   children,
