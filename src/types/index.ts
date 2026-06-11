@@ -22,6 +22,7 @@ export interface User {
   avatar_url?: string;
   created_at: Date;
   is_archived: boolean;
+  warehouse_id?: string;
 }
 
 // =============================================================================
@@ -31,7 +32,7 @@ export interface User {
 export interface Customer {
   id: string;
   name: string;
-  phone: string;
+  phone?: string;
   location?: string;
   avatar_url?: string;
   created_at: Date;

@@ -611,7 +611,7 @@ export default function PurchasePage() {
 
       {/* ─── CREATE PURCHASE SHEET ─────────────────────── */}
       <Sheet open={createOpen} onOpenChange={setCreateOpen}>
-        <SheetContent side="right" className="!w-full sm:!max-w-2xl p-0 flex flex-col">
+        <SheetContent side="right" className="!w-[95vw] sm:!w-[80vw] lg:!w-[70vw] xl:!w-[60vw] sm:!max-w-none p-0 flex flex-col">
           <SheetHeader className="px-6 pt-6 pb-4 border-b bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/30 shrink-0">
             <SheetTitle className="flex items-center gap-2 text-lg">
               <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
@@ -912,7 +912,7 @@ export default function PurchasePage() {
 
       {/* ─── VIEW PURCHASE DETAIL SHEET ────────────────── */}
       <Sheet open={!!viewingPurchase} onOpenChange={(open) => !open && setViewingPurchase(null)}>
-        <SheetContent side="right" className="!w-full sm:!max-w-xl p-0 flex flex-col">
+        <SheetContent side="right" className="!w-[95vw] sm:!w-[80vw] lg:!w-[70vw] xl:!w-[60vw] sm:!max-w-none p-0 flex flex-col">
           {viewingPurchase && (
             <>
               <SheetHeader className="px-6 pt-6 pb-4 border-b bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/30 shrink-0">

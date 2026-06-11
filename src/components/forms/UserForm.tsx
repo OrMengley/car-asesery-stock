@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { createUser, updateUser } from "@/lib/firebase/actions";
+import { getWarehouses } from "@/lib/firebase/warehouse-actions";
 import { useState, useEffect, useRef } from "react";
 import {
   Loader2,
@@ -27,6 +28,7 @@ import {
   Camera,
   ImagePlus,
   Trash2,
+  Warehouse as WarehouseIcon,
 } from "lucide-react";
 import {
   Select,
@@ -35,7 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Role, User } from "@/types";
+import { Role, User, Warehouse } from "@/types";
 import Image from "next/image";
 import imageCompression from "browser-image-compression";
 
@@ -59,6 +61,7 @@ const formSchema = z.object({
       return true;
     }),
   role: z.enum(["admin", "sale", "logistic"] as const),
+  warehouse_id: z.string().optional(),
 });
 
 interface UserFormProps {
@@ -69,9 +72,22 @@ interface UserFormProps {
 export function UserForm({ onSuccess, initialData }: UserFormProps) {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [avatarUrl, setAvatarUrl] = useState(initialData?.avatar_url || "");
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const isEditing = !!initialData;
+
+  useEffect(() => {
+    async function loadWarehouses() {
+      try {
+        const data = await getWarehouses();
+        setWarehouses(data);
+      } catch (error) {
+        console.error("Failed to load warehouses:", error);
+      }
+    }
+    loadWarehouses();
+  }, []);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -81,6 +97,7 @@ export function UserForm({ onSuccess, initialData }: UserFormProps) {
       email: (initialData as any)?.email || "",
       password: "",
       role: initialData?.role || "sale",
+      warehouse_id: initialData?.warehouse_id || "",
     },
   });
 
@@ -93,6 +110,7 @@ export function UserForm({ onSuccess, initialData }: UserFormProps) {
         email: (initialData as any).email || "",
         password: "",
         role: initialData.role,
+        warehouse_id: initialData.warehouse_id || "",
       });
       setAvatarUrl(initialData.avatar_url || "");
     } else {
@@ -102,6 +120,7 @@ export function UserForm({ onSuccess, initialData }: UserFormProps) {
         email: "",
         password: "",
         role: "sale",
+        warehouse_id: "",
       });
       setAvatarUrl("");
     }
@@ -162,12 +181,17 @@ export function UserForm({ onSuccess, initialData }: UserFormProps) {
       return;
     }
 
+    const processedValues = { ...values };
+    if (processedValues.warehouse_id === "None") {
+      processedValues.warehouse_id = "";
+    }
+
     setLoading(true);
     try {
       if (isEditing && initialData) {
-        const { password, ...updateData } = values;
+        const { password, ...updateData } = processedValues;
         // Only include password if it's been changed
-        const finalData = password ? values : updateData;
+        const finalData = password ? processedValues : updateData;
         await updateUser(initialData.id, {
           ...(finalData as any),
           avatar_url: avatarUrl || "",
@@ -175,7 +199,7 @@ export function UserForm({ onSuccess, initialData }: UserFormProps) {
         toast.success("User updated successfully");
       } else {
         await createUser({
-          ...(values as any),
+          ...(processedValues as any),
           avatar_url: avatarUrl || "",
         });
         toast.success("User created successfully");
@@ -343,6 +367,38 @@ export function UserForm({ onSuccess, initialData }: UserFormProps) {
               )}
             />
           </div>
+
+          <FormField
+            control={form.control}
+            name="warehouse_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="flex items-center gap-2">
+                  <WarehouseIcon className="h-4 w-4 text-muted-foreground" />
+                  Assigned Warehouse (Optional)
+                </FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger className="bg-background/50 border-blue-100 focus:ring-blue-500">
+                      <SelectValue placeholder="Select a warehouse" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="None">No Warehouse Restriction</SelectItem>
+                    {warehouses.map((w) => (
+                      <SelectItem key={w.id} value={w.id}>
+                        {w.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground">
+                  Restricts user to see and sell only from this warehouse.
+                </p>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
         {/* ─── Security & Login ───────────────────────── */}

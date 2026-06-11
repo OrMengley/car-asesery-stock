@@ -31,30 +31,56 @@ export async function createStockTransfer(data: {
     note?: string;
     created_by: string;
 }) {
+    // ─── PRE-TRANSACTION QUERIES ──────────────────────────────────
+    // Firestore transactions don't support getDocs() inside them.
+    // We query the doc IDs first, then re-read them with transaction.get() inside.
+
+    // Fetch source stock docs for this product in the source warehouse
+    const sourceStocksQuery = query(
+        collection(db, "stocks"),
+        where("product_id", "==", data.product_id),
+        where("warehouse_id", "==", data.from_warehouse_id),
+        where("is_archived", "==", false)
+    );
+    const sourceStockSnaps = await getDocs(sourceStocksQuery);
+
+    // Fetch all product stock docs (for movement record calculation)
+    const allProductStocksQuery = query(
+        collection(db, "stocks"),
+        where("product_id", "==", data.product_id),
+        where("is_archived", "==", false)
+    );
+    const allStockSnaps = await getDocs(allProductStocksQuery);
+
+    // ─── TRANSACTION ─────────────────────────────────────────────
     return await runTransaction(db, async (transaction) => {
-        // 1. READ PHASE
+        // 1. READ PHASE — re-read all docs inside transaction for isolation
         const productRef = doc(db, "products", data.product_id);
         const productSnap = await transaction.get(productRef);
         if (!productSnap.exists()) throw new Error("Product not found");
-        const productData = productSnap.data() as Product;
 
-        // Fetch available stock records in SOURCE warehouse (FIFO: Sort by date)
-        const stocksQuery = query(
-            collection(db, "stocks"),
-            where("product_id", "==", data.product_id),
-            where("warehouse_id", "==", data.from_warehouse_id),
-            where("is_archived", "==", false)
+        // Re-read source stock docs via transaction.get()
+        const sourceStockDocs = await Promise.all(
+            sourceStockSnaps.docs.map(d => transaction.get(doc(db, "stocks", d.id)))
         );
-        const stockSnaps = await getDocs(stocksQuery);
-        const sourceStocks = stockSnaps.docs
+        const sourceStocks = sourceStockDocs
+            .filter(d => d.exists() && (d.data()?.quantity ?? 0) > 0)
             .map(d => ({ id: d.id, ...d.data() } as Stock))
-            .filter(s => s.quantity > 0)
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         const totalAvailable = sourceStocks.reduce((sum, s) => sum + s.quantity, 0);
         if (totalAvailable < data.quantity) {
             throw new Error(`Insufficient stock. Available: ${totalAvailable}, Requested: ${data.quantity}`);
         }
+
+        // Re-read all product stock docs for the movement record
+        const allStockDocs = await Promise.all(
+            allStockSnaps.docs.map(d => transaction.get(doc(db, "stocks", d.id)))
+        );
+        let productTotalStock = 0;
+        allStockDocs.forEach(d => {
+            if (d.exists()) productTotalStock += d.data()?.quantity ?? 0;
+        });
 
         // 2. WRITE PHASE
         let remainingToTransfer = data.quantity;
@@ -72,7 +98,7 @@ export async function createStockTransfer(data: {
                 updated_at: serverTimestamp(),
             });
 
-            // b. Find or Create Target Stock with SAME COST
+            // b. Find existing target stock with SAME COST (query done outside, re-read inside)
             const targetStockQuery = query(
                 collection(db, "stocks"),
                 where("product_id", "==", data.product_id),
@@ -80,17 +106,21 @@ export async function createStockTransfer(data: {
                 where("cost", "==", sourceStock.cost),
                 where("is_archived", "==", false)
             );
+            // getDocs for the target is unavoidable for dynamic lookup; it runs outside the lock
+            // but this is a safe read since we validate quantities via source stock only
             const targetStockSnaps = await getDocs(targetStockQuery);
 
             if (!targetStockSnaps.empty) {
-                // Update existing record in target warehouse
-                const targetRef = doc(db, "stocks", targetStockSnaps.docs[0].id);
+                const targetDoc = targetStockSnaps.docs[0];
+                const targetRef = doc(db, "stocks", targetDoc.id);
+                const targetSnap = await transaction.get(targetRef);
+                const currentQty = targetSnap.exists() ? (targetSnap.data()?.quantity ?? 0) : 0;
                 transaction.update(targetRef, {
-                    quantity: targetStockSnaps.docs[0].data().quantity + takeQty,
+                    quantity: currentQty + takeQty,
                     updated_at: serverTimestamp(),
                 });
             } else {
-                // Create new record in target warehouse
+                // Create new stock record in target warehouse
                 const targetRef = doc(collection(db, "stocks"));
                 transaction.set(targetRef, {
                     product_id: sourceStock.product_id,
@@ -109,18 +139,8 @@ export async function createStockTransfer(data: {
             remainingToTransfer -= takeQty;
         }
 
-        // Create Movement Record
+        // 3. Create Movement Record
         const movementRef = doc(collection(db, "stock_movements"));
-        // Calculate global stock total dynamically since we don't store it on the product anymore
-        const allProductStocksQuery = query(
-            collection(db, "stocks"),
-            where("product_id", "==", data.product_id),
-            where("is_archived", "==", false)
-        );
-        const allStockSnaps = await getDocs(allProductStocksQuery);
-        let productTotalStock = 0;
-        allStockSnaps.forEach(d => productTotalStock += d.data().quantity);
-
         const movementDoc = {
             product_id: data.product_id,
             type: "transfer",
@@ -128,7 +148,7 @@ export async function createStockTransfer(data: {
             from_warehouse_id: data.from_warehouse_id,
             to_warehouse_id: data.to_warehouse_id,
             previous_stock_level: productTotalStock,
-            new_stock_level: productTotalStock,
+            new_stock_level: productTotalStock, // total stays same — just moved
             note: data.note || "Stock transfer",
             created_by: data.created_by,
             date: Timestamp.fromDate(now),
@@ -139,3 +159,4 @@ export async function createStockTransfer(data: {
         return movementRef.id;
     });
 }
+

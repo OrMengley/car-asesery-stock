@@ -79,7 +79,7 @@ export async function getUsers() {
     });
 }
 
-export async function createUser(data: { name: string; username: string; role: Role; email: string; password?: string; avatar_url?: string }) {
+export async function createUser(data: { name: string; username: string; role: Role; email: string; password?: string; avatar_url?: string, warehouse_id?: string }) {
     // To create a user without logging out the current admin session,
     // we use a secondary Firebase app instance.
     const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
@@ -103,6 +103,7 @@ export async function createUser(data: { name: string; username: string; role: R
             username: data.username,
             email: data.email,
             role: data.role,
+            warehouse_id: data.warehouse_id || "",
             avatar_url: data.avatar_url || "",
             created_at: serverTimestamp(),
             is_archived: false,

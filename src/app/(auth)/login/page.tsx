@@ -23,7 +23,23 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      let loginEmail = email;
+
+      // If the input doesn't look like an email, assume it's a username
+      if (!email.includes("@")) {
+        const { collection, query, where, getDocs } = await import("firebase/firestore");
+        const usersRef = collection(db, "users");
+        const q = query(usersRef, where("username", "==", email.trim()));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+          throw new Error("No user found with this username.");
+        }
+        
+        loginEmail = querySnapshot.docs[0].data().email;
+      }
+
+      const userCredential = await signInWithEmailAndPassword(auth, loginEmail, password);
       const user = userCredential.user;
       
       // Get ID Token which includes expiration
@@ -77,7 +93,7 @@ export default function LoginPage() {
           <div className="grid gap-2 text-center">
             <h1 className="text-3xl font-bold">Login</h1>
             <p className="text-balance text-muted-foreground">
-              Enter your email below to login to your account
+              Enter your email or username to login
             </p>
           </div>
           <form onSubmit={handleLogin} className="grid gap-4">
@@ -87,11 +103,11 @@ export default function LoginPage() {
               </div>
             )}
             <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Email or Username</Label>
               <Input
                 id="email"
-                type="email"
-                placeholder="admin@antigravity.inc"
+                type="text"
+                placeholder="admin or email@example.com"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

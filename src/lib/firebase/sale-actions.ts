@@ -10,7 +10,7 @@ import {
     runTransaction,
     Timestamp,
 } from "firebase/firestore";
-import { sale_invoice, Product, Stock, StockMovement } from "@/types";
+import { SaleInvoice, Product, Stock, StockMovement } from "@/types";
 
 export async function createSale(data: {
     customer_id: string;
@@ -156,7 +156,7 @@ export async function getSaleInvoices() {
                 id: d.id,
                 ...data,
                 created_at: data.created_at?.toDate() || new Date(),
-            } as sale_invoice;
+            } as SaleInvoice;
         })
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
@@ -167,6 +167,25 @@ export async function deleteSaleInvoice(id: string) {
     const docRef = doc(db, "sale_invoices", id);
     await updateDoc(docRef, {
         is_archived: true,
+        updated_at: serverTimestamp(),
+    });
+}
+
+// --- Mark Sale Invoice as Paid ---
+
+export async function updateSalePayment(
+    id: string,
+    data: {
+        payment_method: "cash" | "aba" | "aclida" | "wing";
+        amount_received: number;
+    }
+) {
+    const docRef = doc(db, "sale_invoices", id);
+    await updateDoc(docRef, {
+        status: "paid",
+        payment_method: data.payment_method,
+        amount_received: data.amount_received,
+        paid_at: serverTimestamp(),
         updated_at: serverTimestamp(),
     });
 }

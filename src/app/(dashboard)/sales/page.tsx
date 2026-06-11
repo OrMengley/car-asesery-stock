@@ -30,6 +30,7 @@ import {
   createSale,
   getSaleInvoices,
   deleteSaleInvoice,
+  updateSalePayment,
 } from "@/lib/firebase/sale-actions";
 import { getCustomers, createCustomer } from "@/lib/firebase/customer-actions";
 import { getWarehouses } from "@/lib/firebase/warehouse-actions";
@@ -97,7 +98,7 @@ export default function SalesPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const { user: authUser } = useAuth();
+  const { user: authUser, userInfo } = useAuth();
 
   // Create sheet
   const [createOpen, setCreateOpen] = useState(false);
@@ -111,6 +112,20 @@ export default function SalesPage() {
   // Form fields
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [selectedWarehouseId, setSelectedWarehouseId] = useState("");
+
+  // Auto-set warehouse from user_auth local storage
+  useEffect(() => {
+    if (userInfo?.warehouse_id) {
+      setSelectedWarehouseId(userInfo.warehouse_id);
+    }
+  }, [userInfo]);
+  
+  // Auto-open product dropdown when warehouse is selected and sheet is open
+  useEffect(() => {
+    if (createOpen && selectedWarehouseId) {
+      setShowProductDropdown(true);
+    }
+  }, [createOpen, selectedWarehouseId]);
   const [overallDiscount, setOverallDiscount] = useState(0);
   const [overallTax, setOverallTax] = useState(0);
   const [paymentStatus, setPaymentStatus] = useState<"paid" | "not paid">("paid");
@@ -122,12 +137,21 @@ export default function SalesPage() {
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "not paid">("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   // Quick-create customer
   const [showNewCustomer, setShowNewCustomer] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [savingCustomer, setSavingCustomer] = useState(false);
+
+  // Pay state
+  const [payingInvoice, setPayingInvoice] = useState<SaleInvoice | null>(null);
+  const [payMethod, setPayMethod] = useState<"cash" | "aba" | "aclida" | "wing">("cash");
+  const [amountReceived, setAmountReceived] = useState("");
+  const [paying, setPaying] = useState(false);
 
   // Product search
   const [productSearch, setProductSearch] = useState("");
@@ -185,13 +209,17 @@ export default function SalesPage() {
 
   // ─── Dashboard stats ───────────────────────────────────
   const stats = useMemo(() => {
-    const totalSales = invoices.length;
-    const totalRevenue = invoices.reduce((sum, i) => sum + i.total_price, 0);
-    const totalItems = invoices.reduce(
+    const relevantInvoices = userInfo?.warehouse_id 
+      ? invoices.filter(inv => inv.warehouse_id === userInfo.warehouse_id)
+      : invoices;
+
+    const totalSales = relevantInvoices.length;
+    const totalRevenue = relevantInvoices.reduce((sum, i) => sum + i.total_price, 0);
+    const totalItems = relevantInvoices.reduce(
       (sum, inv) => sum + inv.items.reduce((s, item) => s + item.quantity, 0),
       0
     );
-    const thisMonth = invoices.filter((inv) => {
+    const thisMonth = relevantInvoices.filter((inv) => {
       const now = new Date();
       const d = new Date(inv.created_at);
       return (
@@ -204,7 +232,7 @@ export default function SalesPage() {
       0
     );
     return { totalSales, totalRevenue, totalItems, thisMonthRevenue };
-  }, [invoices]);
+  }, [invoices, userInfo]);
 
   // ─── Draft calculations ─────────────────────────────────
   const draftSubTotal = useMemo(
@@ -219,6 +247,35 @@ export default function SalesPage() {
   // ─── Filtering & pagination ─────────────────────────────
   const filteredInvoices = useMemo(() => {
     let result = [...invoices];
+
+    // Filter by warehouse if user is restricted
+    if (userInfo?.warehouse_id) {
+      result = result.filter((inv) => inv.warehouse_id === userInfo.warehouse_id);
+    }
+
+    // Only show sales created by the currently logged-in user
+    if (authUser?.uid) {
+      result = result.filter((inv) => inv.created_by === authUser.uid);
+    }
+
+    // Status filter
+    if (statusFilter !== "all") {
+      result = result.filter((inv) => inv.status === statusFilter);
+    }
+
+    // Date range filter
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      from.setHours(0, 0, 0, 0);
+      result = result.filter((inv) => new Date(inv.created_at) >= from);
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      result = result.filter((inv) => new Date(inv.created_at) <= to);
+    }
+
+    // Text search
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter(
@@ -235,7 +292,7 @@ export default function SalesPage() {
         : new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
     return result;
-  }, [invoices, searchQuery, sortOrder, customerMap]);
+  }, [invoices, searchQuery, sortOrder, customerMap, authUser, statusFilter, dateFrom, dateTo]);
 
   const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
   const paginatedInvoices = useMemo(
@@ -249,15 +306,17 @@ export default function SalesPage() {
 
   // ─── Product search → stock batches by cost ─────────────
   const filteredStockBatches = useMemo(() => {
-    if (!productSearch || !selectedWarehouseId) return [];
+    if (!selectedWarehouseId) return [];
     const q = productSearch.toLowerCase();
 
     // Find matching products
-    const matchedProducts = products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.barcode.toLowerCase().includes(q)
-    );
+    const matchedProducts = q 
+      ? products.filter(
+          (p) =>
+            p.name.toLowerCase().includes(q) ||
+            p.barcode.toLowerCase().includes(q)
+        )
+      : products; // Show all products if no search query
 
     // For each matched product, get stock batches from selected warehouse
     const batches: StockBatch[] = [];
@@ -292,7 +351,7 @@ export default function SalesPage() {
       }
     }
 
-    return batches.slice(0, 12);
+    return q ? batches.slice(0, 12) : batches.filter(b => b.available > 0).slice(0, 15);
   }, [productSearch, products, stocks, selectedWarehouseId]);
 
   // ─── Add item to draft ──────────────────────────────────
@@ -405,7 +464,7 @@ export default function SalesPage() {
 
   function resetForm() {
     setSelectedCustomerId("");
-    setSelectedWarehouseId("");
+    setSelectedWarehouseId(userInfo?.warehouse_id || "");
     setOverallDiscount(0);
     setOverallTax(0);
     setPaymentStatus("paid");
@@ -446,7 +505,40 @@ export default function SalesPage() {
     }
   }
 
-  // ─── Delete sale ────────────────────────────────────────
+  // ─── Mark as paid ─────────────────────────────────
+  async function handlePay() {
+    if (!payingInvoice) return;
+    const amt = parseFloat(amountReceived);
+    if (isNaN(amt) || amt <= 0) {
+      toast.error("Please enter a valid amount received");
+      return;
+    }
+    if (amt < payingInvoice.total_price) {
+      toast.error(`Amount must be at least $${payingInvoice.total_price.toFixed(2)}`);
+      return;
+    }
+    setPaying(true);
+    try {
+      await updateSalePayment(payingInvoice.id, {
+        payment_method: payMethod,
+        amount_received: amt,
+      });
+      toast.success("Payment recorded successfully!");
+      setPayingInvoice(null);
+      setAmountReceived("");
+      setPayMethod("cash");
+      // Refresh data and update viewingInvoice to reflect paid status
+      await fetchData();
+      setViewingInvoice(null);
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.message || "Failed to record payment");
+    } finally {
+      setPaying(false);
+    }
+  }
+
+  // ─── Delete sale ─────────────────────────────────
   async function handleDelete(id: string) {
     try {
       await deleteSaleInvoice(id);
@@ -761,6 +853,8 @@ export default function SalesPage() {
     );
   }
 
+
+
   return (
     <div className="flex flex-col gap-6 px-4 lg:px-6 py-4">
       {/* ─── Header ────────────────────────────────────── */}
@@ -860,33 +954,101 @@ export default function SalesPage() {
       </div>
 
       {/* ─── Filters ───────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search01Icon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by invoice ID or customer..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="pl-10 h-10 bg-background border-border/60"
-          />
+      <div className="space-y-3">
+        {/* Row 1: search + sort */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search01Icon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by invoice ID or customer..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="pl-10 h-10 bg-background border-border/60"
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
+            className="h-10 w-10 shrink-0"
+            title={sortOrder === "desc" ? "Newest first" : "Oldest first"}
+          >
+            {sortOrder === "desc" ? (
+              <ArrowDown01Icon className="h-4 w-4" />
+            ) : (
+              <ArrowUp01Icon className="h-4 w-4" />
+            )}
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
-          className="h-10 w-10 shrink-0"
-          title={sortOrder === "desc" ? "Newest first" : "Oldest first"}
-        >
-          {sortOrder === "desc" ? (
-            <ArrowDown01Icon className="h-4 w-4" />
-          ) : (
-            <ArrowUp01Icon className="h-4 w-4" />
+
+        {/* Row 2: status pills + date range */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Status filter pills */}
+          <div className="flex items-center border rounded-lg overflow-hidden h-9 shrink-0">
+            {(["all", "paid", "not paid"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => { setStatusFilter(s); setCurrentPage(1); }}
+                className={`px-3 h-full text-xs font-semibold transition-colors ${
+                  statusFilter === s
+                    ? s === "paid"
+                      ? "bg-emerald-600 text-white"
+                      : s === "not paid"
+                      ? "bg-red-500 text-white"
+                      : "bg-foreground text-background"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                {s === "all" ? "All" : s === "paid" ? "✓ Paid" : "✗ Not Paid"}
+              </button>
+            ))}
+          </div>
+
+          {/* Date From */}
+          <div className="flex items-center gap-1.5 border rounded-lg h-9 px-3 bg-background">
+            <Calendar01Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">From</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); setCurrentPage(1); }}
+              className="h-full text-xs bg-transparent outline-none text-foreground w-28 cursor-pointer"
+            />
+          </div>
+
+          {/* Date To */}
+          <div className="flex items-center gap-1.5 border rounded-lg h-9 px-3 bg-background">
+            <Calendar01Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">To</span>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(e) => { setDateTo(e.target.value); setCurrentPage(1); }}
+              className="h-full text-xs bg-transparent outline-none text-foreground w-28 cursor-pointer"
+            />
+          </div>
+
+          {/* Clear active filters */}
+          {(statusFilter !== "all" || dateFrom || dateTo) && (
+            <button
+              onClick={() => { setStatusFilter("all"); setDateFrom(""); setDateTo(""); setCurrentPage(1); }}
+              className="flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-700 px-2 h-9 rounded-lg hover:bg-red-50 transition-colors"
+            >
+              <Cancel01Icon className="h-3.5 w-3.5" />
+              Clear
+            </button>
           )}
-        </Button>
+
+          <span className="ml-auto text-xs text-muted-foreground">
+            {filteredInvoices.length} result{filteredInvoices.length !== 1 ? "s" : ""}
+          </span>
+        </div>
       </div>
+
 
       {/* ─── Sales Table ────────────────────────────────── */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -1216,6 +1378,7 @@ export default function SalesPage() {
                     <Select
                       value={selectedWarehouseId}
                       onValueChange={setSelectedWarehouseId}
+                      disabled={!!userInfo?.warehouse_id}
                     >
                       <SelectTrigger className="h-10 text-sm">
                         <SelectValue placeholder="Select warehouse" />
@@ -1226,13 +1389,15 @@ export default function SalesPage() {
                             No warehouses found.
                           </div>
                         ) : (
-                          warehouses.map((w) => (
-                            <SelectItem key={w.id} value={w.id}>
-                              <div className="flex flex-col">
-                                <span className="font-medium">{w.name}</span>
-                              </div>
-                            </SelectItem>
-                          ))
+                          warehouses
+                            .filter(w => !userInfo?.warehouse_id || w.id === userInfo.warehouse_id)
+                            .map((w) => (
+                              <SelectItem key={w.id} value={w.id}>
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{w.name}</span>
+                                </div>
+                              </SelectItem>
+                            ))
                         )}
                       </SelectContent>
                     </Select>
@@ -1274,7 +1439,7 @@ export default function SalesPage() {
                     className="pl-10 h-10"
                   />
                   {/* Dropdown — stock batches by cost */}
-                  {showProductDropdown && productSearch && filteredStockBatches.length > 0 && (
+                  {showProductDropdown && selectedWarehouseId && filteredStockBatches.length > 0 && (
                     <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-lg border bg-popover shadow-xl max-h-72 overflow-auto">
                       {filteredStockBatches.map((batch, batchIdx) => (
                         <button
@@ -1521,43 +1686,55 @@ export default function SalesPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs font-semibold text-muted-foreground">
                         Payment Status
                       </Label>
                       <Select
                         value={paymentStatus}
-                        onValueChange={(v: any) => setPaymentStatus(v)}
+                        onValueChange={(v: any) => {
+                          setPaymentStatus(v);
+                          // reset method when switching to not paid
+                          if (v === "not paid") setPaymentMethod("cash");
+                        }}
                       >
-                        <SelectTrigger className="h-10">
+                        <SelectTrigger className={`h-10 font-semibold ${
+                          paymentStatus === "paid"
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-700 dark:text-emerald-400"
+                            : "border-red-300 bg-red-50 text-red-700 dark:bg-red-950/30 dark:border-red-700 dark:text-red-400"
+                        }`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="paid">Paid</SelectItem>
-                          <SelectItem value="not paid">Not Paid</SelectItem>
+                          <SelectItem value="paid">✓ Paid</SelectItem>
+                          <SelectItem value="not paid">✗ Not Paid</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold text-muted-foreground">
-                        Payment Method
-                      </Label>
-                      <Select
-                        value={paymentMethod}
-                        onValueChange={(v: any) => setPaymentMethod(v)}
-                      >
-                        <SelectTrigger className="h-10">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="cash">Cash</SelectItem>
-                          <SelectItem value="aba">ABA Bank</SelectItem>
-                          <SelectItem value="aclida">ACLIDA Bank</SelectItem>
-                          <SelectItem value="wing">Wing</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+
+                    {/* Payment Method — only shown when status is paid */}
+                    {paymentStatus === "paid" && (
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold text-muted-foreground">
+                          Payment Method
+                        </Label>
+                        <Select
+                          value={paymentMethod}
+                          onValueChange={(v: any) => setPaymentMethod(v)}
+                        >
+                          <SelectTrigger className="h-10">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="cash">💵 Cash</SelectItem>
+                            <SelectItem value="aba">🏦 ABA Bank</SelectItem>
+                            <SelectItem value="aclida">🏦 ACLIDA Bank</SelectItem>
+                            <SelectItem value="wing">📱 Wing</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
 
                   <Separator />
@@ -1626,17 +1803,32 @@ export default function SalesPage() {
       >
         <SheetContent
           side="right"
-          className="!w-full sm:!max-w-lg p-0 flex flex-col"
+          showCloseButton={false}
+          className="
+            p-0 flex flex-col shadow-2xl border-none
+            !inset-0 !w-full !h-full !max-w-none rounded-none
+            md:!inset-y-4 md:!right-4 md:!left-auto
+            md:!h-[calc(100vh-2rem)] md:!w-[min(95vw,960px)]
+            md:rounded-2xl overflow-hidden
+          "
         >
           {viewingInvoice && (
             <>
-              <SheetHeader className="px-6 pt-6 pb-4 border-b bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 shrink-0">
-                <SheetTitle className="flex items-center gap-2 text-lg">
-                  <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-                    <Invoice01Icon className="h-4 w-4 text-white" />
-                  </div>
-                  Invoice Details
-                </SheetTitle>
+              <SheetHeader className="px-6 pt-5 pb-4 border-b bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 shrink-0">
+                <div className="flex items-center justify-between gap-3">
+                  <SheetTitle className="flex items-center gap-2 text-lg">
+                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0">
+                      <Invoice01Icon className="h-4 w-4 text-white" />
+                    </div>
+                    Invoice Details
+                  </SheetTitle>
+                  <button
+                    onClick={() => setViewingInvoice(null)}
+                    className="h-8 w-8 rounded-lg border border-emerald-200 bg-white/70 flex items-center justify-center text-emerald-500 hover:text-emerald-700 hover:bg-white transition-all shrink-0"
+                  >
+                    <Cancel01Icon className="h-4 w-4" />
+                  </button>
+                </div>
                 <SheetDescription>
                   {viewingInvoice.id.slice(0, 8).toUpperCase()} •{" "}
                   {format(
@@ -1795,9 +1987,100 @@ export default function SalesPage() {
               </ScrollArea>
 
               {/* Bottom actions */}
-              <div className="p-6 border-t bg-muted/30 shrink-0 flex gap-3">
+              <div className="p-6 border-t bg-muted/30 shrink-0 space-y-3">
+
+                {/* ─── PAY PANEL: only for not-paid invoices ─── */}
+                {viewingInvoice.status === "not paid" && (
+                  <div className="rounded-xl border-2 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800/50 p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="h-6 w-6 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
+                        <MoneyReceiveSquareIcon className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <p className="text-sm font-bold text-amber-800 dark:text-amber-300">Record Payment</p>
+                      <span className="ml-auto text-xs font-bold text-amber-600 dark:text-amber-400">
+                        Due: ${viewingInvoice.total_price.toFixed(2)}
+                      </span>
+                    </div>
+
+                    {payingInvoice?.id === viewingInvoice.id ? (
+                      <div className="space-y-2.5">
+                        {/* Payment method */}
+                        <Select
+                          value={payMethod}
+                          onValueChange={(v: any) => setPayMethod(v)}
+                        >
+                          <SelectTrigger className="h-10 bg-white dark:bg-background border-amber-200 dark:border-amber-700">
+                            <SelectValue placeholder="Payment method" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="cash">💵 Cash</SelectItem>
+                            <SelectItem value="aba">🏦 ABA Bank</SelectItem>
+                            <SelectItem value="aclida">🏦 ACLIDA Bank</SelectItem>
+                            <SelectItem value="wing">📱 Wing</SelectItem>
+                          </SelectContent>
+                        </Select>
+
+                        {/* Amount received */}
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-amber-500">$</span>
+                          <Input
+                            type="number"
+                            min={viewingInvoice.total_price}
+                            step={0.01}
+                            placeholder={`Min $${viewingInvoice.total_price.toFixed(2)}`}
+                            value={amountReceived}
+                            onChange={(e) => setAmountReceived(e.target.value)}
+                            className="pl-7 h-10 bg-white dark:bg-background border-amber-200 dark:border-amber-700 font-mono"
+                            autoFocus
+                          />
+                        </div>
+
+                        {/* Change */}
+                        {parseFloat(amountReceived) > viewingInvoice.total_price && (
+                          <div className="flex justify-between items-center text-xs font-semibold px-1">
+                            <span className="text-muted-foreground">Change</span>
+                            <span className="text-emerald-600 font-bold">
+                              ${(parseFloat(amountReceived) - viewingInvoice.total_price).toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            className="flex-1 h-10 text-sm border-amber-200"
+                            onClick={() => { setPayingInvoice(null); setAmountReceived(""); }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            className="flex-1 h-10 text-sm bg-amber-500 hover:bg-amber-600 text-white gap-2"
+                            disabled={paying || !amountReceived || parseFloat(amountReceived) < viewingInvoice.total_price}
+                            onClick={handlePay}
+                          >
+                            {paying ? <Loading01Icon className="h-4 w-4 animate-spin" /> : <CheckmarkCircle01Icon className="h-4 w-4" />}
+                            {paying ? "Recording..." : "Confirm Payment"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button
+                        className="w-full h-10 text-sm bg-amber-500 hover:bg-amber-600 text-white gap-2"
+                        onClick={() => {
+                          setPayingInvoice(viewingInvoice);
+                          setAmountReceived(viewingInvoice.total_price.toFixed(2));
+                          setPayMethod("cash");
+                        }}
+                      >
+                        <MoneyReceiveSquareIcon className="h-4 w-4" />
+                        Mark as Paid
+                      </Button>
+                    )}
+                  </div>
+                )}
+
                 <Button
-                  className="flex-1 h-11 gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25"
+                  className="w-full h-11 gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25"
                   onClick={() => handlePrintInvoice(viewingInvoice)}
                 >
                   <PrinterIcon className="h-4 w-4" />

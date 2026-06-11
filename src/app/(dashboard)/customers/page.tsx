@@ -207,15 +207,11 @@ export default function CustomersPage() {
       toast.error("Customer name is required");
       return;
     }
-    if (!phone.trim()) {
-      toast.error("Phone number is required");
-      return;
-    }
     setSaving(true);
     try {
       const payload: Omit<Customer, "id" | "created_at" | "is_deleted"> = {
         name: name.trim(),
-        phone: phone.trim(),
+        ...(phone.trim() && { phone: phone.trim() }),
         ...(location.trim() && { location: location.trim() }),
         ...(avatarUrl.trim() && { avatar_url: avatarUrl.trim() }),
       };
@@ -377,7 +373,7 @@ export default function CustomersPage() {
               <div className="space-y-2">
                 <Label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                   <Call02Icon className="h-3.5 w-3.5" />
-                  Phone Number <span className="text-red-500">*</span>
+                  Phone Number <span className="text-xs font-normal text-muted-foreground/60">(optional)</span>
                 </Label>
                 <Input
                   value={phone}
@@ -459,7 +455,7 @@ export default function CustomersPage() {
 
               <Button
                 onClick={handleSave}
-                disabled={saving || !name.trim() || !phone.trim()}
+                disabled={saving || !name.trim()}
                 className="w-full h-11 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/25 gap-2 mt-2"
               >
                 {saving ? (
