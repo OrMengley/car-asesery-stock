@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: "ANTIGRAVITY - Inventory & Stock Management",
@@ -18,6 +19,7 @@ export default function RootLayout({
       <body className={GeistMono.className} suppressHydrationWarning>
         {children}
         <Toaster />
+        <SpeedInsights />
       </body>
     </html>
   );
