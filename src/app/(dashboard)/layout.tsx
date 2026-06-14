@@ -18,13 +18,18 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { role, loading } = useAuth()
+  const { user, role, loading } = useAuth()
   const pathname = usePathname()
   const router = useRouter()
   const [authorized, setAuthorized] = useState(false)
 
   useEffect(() => {
     if (loading) return
+
+    if (!user) {
+      router.replace("/login")
+      return
+    }
 
     // If role is sale or logistic, check if the current path is allowed
     if (role === "sale" || role === "logistic") {

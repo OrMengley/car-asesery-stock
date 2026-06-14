@@ -52,6 +52,15 @@ export async function createStockTransfer(data: {
     );
     const allStockSnaps = await getDocs(allProductStocksQuery);
 
+    // Fetch all target stock docs to find existing ones
+    const targetStocksQuery = query(
+        collection(db, "stocks"),
+        where("product_id", "==", data.product_id),
+        where("warehouse_id", "==", data.to_warehouse_id),
+        where("is_archived", "==", false)
+    );
+    const targetStockSnaps = await getDocs(targetStocksQuery);
+
     // ─── TRANSACTION ─────────────────────────────────────────────
     return await runTransaction(db, async (transaction) => {
         // 1. READ PHASE — re-read all docs inside transaction for isolation
@@ -82,9 +91,20 @@ export async function createStockTransfer(data: {
             if (d.exists()) productTotalStock += d.data()?.quantity ?? 0;
         });
 
+        // Re-read target stock docs
+        const targetStockDocs = await Promise.all(
+            targetStockSnaps.docs.map(d => transaction.get(doc(db, "stocks", d.id)))
+        );
+        const targetStocks = targetStockDocs
+            .filter(d => d.exists())
+            .map(d => ({ id: d.id, ...d.data() } as Stock));
+
         // 2. WRITE PHASE
         let remainingToTransfer = data.quantity;
         const now = new Date();
+
+        // Map to group additions to target warehouse by cost
+        const targetAdditionsByCost = new Map<number, number>();
 
         for (const sourceStock of sourceStocks) {
             if (remainingToTransfer <= 0) break;
@@ -98,29 +118,25 @@ export async function createStockTransfer(data: {
                 updated_at: serverTimestamp(),
             });
 
-            // b. Find existing target stock with SAME COST (query done outside, re-read inside)
-            const targetStockQuery = query(
-                collection(db, "stocks"),
-                where("product_id", "==", data.product_id),
-                where("warehouse_id", "==", data.to_warehouse_id),
-                where("cost", "==", sourceStock.cost),
-                where("is_archived", "==", false)
-            );
-            // getDocs for the target is unavoidable for dynamic lookup; it runs outside the lock
-            // but this is a safe read since we validate quantities via source stock only
-            const targetStockSnaps = await getDocs(targetStockQuery);
+            // Keep track of how much to add to the target warehouse per cost
+            const currentAddition = targetAdditionsByCost.get(sourceStock.cost) ?? 0;
+            targetAdditionsByCost.set(sourceStock.cost, currentAddition + takeQty);
 
-            if (!targetStockSnaps.empty) {
-                const targetDoc = targetStockSnaps.docs[0];
-                const targetRef = doc(db, "stocks", targetDoc.id);
-                const targetSnap = await transaction.get(targetRef);
-                const currentQty = targetSnap.exists() ? (targetSnap.data()?.quantity ?? 0) : 0;
+            remainingToTransfer -= takeQty;
+        }
+
+        // b. Apply target warehouse additions
+        for (const [cost, addQty] of targetAdditionsByCost.entries()) {
+            const existingTarget = targetStocks.find(t => t.cost === cost);
+            if (existingTarget) {
+                const targetRef = doc(db, "stocks", existingTarget.id);
                 transaction.update(targetRef, {
-                    quantity: currentQty + takeQty,
+                    quantity: existingTarget.quantity + addQty,
                     updated_at: serverTimestamp(),
                 });
             } else {
-                // Create new stock record in target warehouse
+                // Find a source stock with this cost to copy product details from
+                const sourceStock = sourceStocks.find(s => s.cost === cost)!;
                 const targetRef = doc(collection(db, "stocks"));
                 transaction.set(targetRef, {
                     product_id: sourceStock.product_id,
@@ -129,14 +145,12 @@ export async function createStockTransfer(data: {
                     product: sourceStock.product,
                     cost: sourceStock.cost,
                     date: Timestamp.fromDate(now),
-                    quantity: takeQty,
+                    quantity: addQty,
                     is_archived: false,
                     created_by: data.created_by,
                     created_at: serverTimestamp(),
                 });
             }
-
-            remainingToTransfer -= takeQty;
         }
 
         // 3. Create Movement Record
