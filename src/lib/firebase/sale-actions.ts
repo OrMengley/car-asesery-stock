@@ -32,12 +32,17 @@ export async function createSale(data: {
         const invoiceItems: any[] = [];
         const now = new Date();
 
+        // 1. READ PHASE: Gather all necessary data for all items first
+        const productDatas = new Map();
+        const availableStocksMap = new Map();
+        const productTotalStockMap = new Map();
+
         for (const item of data.items) {
-            // 1. READ PHASE: Get Product
             const productRef = doc(db, "products", item.product_id);
             const productSnap = await transaction.get(productRef);
             if (!productSnap.exists()) throw new Error(`Product ${item.product_id} not found`);
             const productData = productSnap.data() as Product;
+            productDatas.set(item.product_id, productData);
 
             // Fetch available stock records in warehouse (FIFO)
             const stocksQuery = query(
@@ -57,6 +62,8 @@ export async function createSale(data: {
             const allStockSnaps = await getDocs(allStocksQuery);
             let productTotalStock = 0;
             allStockSnaps.forEach(d => productTotalStock += d.data().quantity);
+            productTotalStockMap.set(item.product_id, productTotalStock);
+
             const availableStocks = stockSnaps.docs
                 .map(d => ({ id: d.id, ...d.data() } as Stock))
                 .filter(s => s.quantity > 0)
@@ -66,8 +73,15 @@ export async function createSale(data: {
             if (totalAvailable < item.quantity) {
                 throw new Error(`Insufficient stock for ${productData.name}. Available: ${totalAvailable}, Requested: ${item.quantity}`);
             }
+            availableStocksMap.set(item.product_id, availableStocks);
+        }
 
-            // 2. WRITE PHASE: Deduct from stocks FIFO
+        // 2. WRITE PHASE: Deduct from stocks FIFO for all items
+        for (const item of data.items) {
+            const productData = productDatas.get(item.product_id);
+            const availableStocks = availableStocksMap.get(item.product_id);
+            let productTotalStock = productTotalStockMap.get(item.product_id);
+
             let remainingToDeduct = item.quantity;
             for (const stockRecord of availableStocks) {
                 if (remainingToDeduct <= 0) break;

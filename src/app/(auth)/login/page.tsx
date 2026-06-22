@@ -20,10 +20,10 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!authLoading && user) {
+    if (!authLoading && user && !loading) {
       router.replace("/");
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, loading]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

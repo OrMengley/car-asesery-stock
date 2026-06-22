@@ -90,7 +90,7 @@ const data = {
       title: "Inventory On Hand",
       url: "/inventory_on_hand",
       icon: Package01Icon,
-      // Accessible to roles that manage physical stock, e.g. logistics or all
+      allowedRoles: ["sale"] as Role[],
     },
     {
       title: "Stock Transfers",
@@ -159,9 +159,10 @@ const data = {
       icon: Database01Icon,
     },
     {
-      name: "Reports",
-      url: "#",
+      name: "Inventory Report",
+      url: "/reports/inventory",
       icon: SchoolReportCardIcon,
+      allowedRoles: ["sale"] as Role[],
     },
     {
       name: "Word Assistant",
@@ -223,6 +224,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     })
   }, [role])
 
+  // Filter documents based on user role
+  const filteredDocuments = React.useMemo(() => {
+    if (!role) return data.documents // Show all while loading
+    return data.documents.filter((item) => {
+      // @ts-ignore - added allowedRoles dynamically
+      if (!item.allowedRoles || item.allowedRoles.length === 0) return true
+      // @ts-ignore
+      return item.allowedRoles.includes(role)
+    })
+  }, [role])
+
   if (!mounted) {
     return (
       <Sidebar collapsible="offcanvas" {...props}>
@@ -262,7 +274,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={filteredNavMain} />
-        <NavDocuments items={data.documents} />
+        <NavDocuments items={filteredDocuments} />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>

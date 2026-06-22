@@ -19,8 +19,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loading01Icon, Search01Icon, Package01Icon, Archive02Icon, Image01Icon, FilterIcon } from "hugeicons-react";
+import { Button } from "@/components/ui/button";
+import { Loading01Icon, Search01Icon, Package01Icon, Archive02Icon, Image01Icon, FilterIcon, PrinterIcon } from "hugeicons-react";
 import Image from "next/image";
+import Link from "next/link";
 import { getProducts, getCategories } from "@/lib/firebase/actions";
 import { getStocks } from "@/lib/firebase/stock-actions";
 import { Product, Stock, Category } from "@/types";
@@ -166,6 +168,14 @@ export default function InventoryOnHandPage() {
               View your current stock level in your assigned warehouse
             </p>
           </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link href="/inventory_on_hand/report">
+            <Button variant="outline" size="sm" className="h-9">
+              <PrinterIcon className="size-4 mr-2" />
+              <span className="hidden sm:inline">Print Report</span>
+            </Button>
+          </Link>
         </div>
       </div>
 

@@ -11,7 +11,7 @@ import {
 import { useAuth } from "@/hooks/useAuth"
 
 // Pages accessible by sale and logistic roles
-const RESTRICTED_ROLE_ALLOWED_PATHS = ["/sales", "/menu", "/inventory_on_hand"]
+const RESTRICTED_ROLE_ALLOWED_PATHS = ["/sales", "/menu", "/inventory_on_hand", "/reports"]
 
 export default function DashboardLayout({
   children,
@@ -31,8 +31,8 @@ export default function DashboardLayout({
       return
     }
 
-    // If role is sale or logistic, check if the current path is allowed
-    if (role === "sale" || role === "logistic") {
+    // If role is not admin, check if the current path is allowed
+    if (role && role !== "admin") {
       const isAllowed = RESTRICTED_ROLE_ALLOWED_PATHS.some(
         (path) => pathname === path || pathname.startsWith(path + "/")
       )

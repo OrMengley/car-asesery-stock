@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "@/lib/firebase/config";
+import { auth, db } from "@/lib/firebase/config";
+import { doc, getDoc } from "firebase/firestore";
 import { Role } from "@/types";
 
 interface UserInfo {
@@ -21,6 +22,8 @@ export function useAuth() {
             if (user) {
                 // Check local storage for token expiration if exists
                 const storedAuth = localStorage.getItem("user_auth");
+                let fetchedFromStorage = false;
+
                 if (storedAuth) {
                     try {
                         const authData = JSON.parse(storedAuth);
@@ -39,13 +42,43 @@ export function useAuth() {
                             if (authData.user_info) {
                                 setRole(authData.user_info.role || null);
                                 setUserInfo(authData.user_info);
+                                fetchedFromStorage = true;
                             }
                         }
                     } catch (e) {
+                        console.error("Error parsing stored auth", e);
+                    }
+                }
+                
+                if (!fetchedFromStorage) {
+                    // Fallback: Fetch from Firestore if local storage is missing or invalid
+                    try {
+                        const userDoc = await getDoc(doc(db, "users", user.uid));
+                        const userData = userDoc.exists() ? userDoc.data() : null;
+                        
+                        if (userData) {
+                            setUser(user);
+                            setRole(userData.role || null);
+                            setUserInfo(userData as UserInfo);
+                            
+                            // Try to update local storage
+                            const tokenResult = await user.getIdTokenResult();
+                            const authData = {
+                                uid: user.uid,
+                                email: user.email,
+                                token: tokenResult.token,
+                                expirationTime: tokenResult.expirationTime,
+                                user_info: userData,
+                                lastLogin: new Date().toISOString()
+                            };
+                            localStorage.setItem("user_auth", JSON.stringify(authData));
+                        } else {
+                            setUser(user);
+                        }
+                    } catch (error) {
+                        console.error("Error fetching user info:", error);
                         setUser(user);
                     }
-                } else {
-                    setUser(user);
                 }
             } else {
                 setUser(null);
