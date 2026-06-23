@@ -174,3 +174,39 @@ export async function createStockTransfer(data: {
     });
 }
 
+export async function getAllStockMovements() {
+    const q = query(collection(db, "stock_movements"));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        
+        // Handle date
+        let parsedDate = new Date();
+        if (data.date) {
+            if (typeof data.date.toDate === 'function') {
+                parsedDate = data.date.toDate();
+            } else if (typeof data.date === 'string' || typeof data.date === 'number') {
+                parsedDate = new Date(data.date);
+            }
+        }
+        
+        // Handle created_at
+        let parsedCreatedAt = new Date();
+        if (data.created_at) {
+            if (typeof data.created_at.toDate === 'function') {
+                parsedCreatedAt = data.created_at.toDate();
+            } else if (typeof data.created_at === 'string' || typeof data.created_at === 'number') {
+                parsedCreatedAt = new Date(data.created_at);
+            }
+        }
+
+        return {
+            id: doc.id,
+            ...data,
+            date: parsedDate,
+            created_at: parsedCreatedAt,
+        };
+    }).sort((a, b) => b.date.getTime() - a.date.getTime()) as StockMovement[];
+}
+
+

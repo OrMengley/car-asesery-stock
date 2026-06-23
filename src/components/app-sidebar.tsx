@@ -99,6 +99,12 @@ const data = {
       allowedRoles: ["admin"] as Role[],
     },
     {
+      title: "Stock Movement",
+      url: "/stock-movement",
+      icon: BarChartIcon,
+      allowedRoles: ["admin", "sale"] as Role[],
+    },
+    {
       title: "Purchases",
       url: "/purchases",
       icon: ShoppingCart01Icon,
@@ -163,6 +169,12 @@ const data = {
       url: "/reports/inventory",
       icon: SchoolReportCardIcon,
       allowedRoles: ["sale"] as Role[],
+    },
+    {
+      name: "Stock Movement Report",
+      url: "/reports/stock-movement",
+      icon: SchoolReportCardIcon,
+      allowedRoles: ["admin", "sale"] as Role[],
     },
     {
       name: "Word Assistant",
