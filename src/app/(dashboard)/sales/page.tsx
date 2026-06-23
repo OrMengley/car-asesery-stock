@@ -129,7 +129,10 @@ function FlyingImageComponent({ img, onComplete }: { img: FlyingImage; onComplet
     });
     
     const removeTimer = setTimeout(onComplete, 900);
-    return () => {
+  
+
+
+  return () => {
       clearTimeout(removeTimer);
     };
   }, [img, onComplete]);
@@ -646,6 +649,154 @@ export default function SalesPage() {
     } catch (error) {
       toast.error("Failed to delete");
     }
+  }
+
+
+  // ─── Print cost invoice (A4 size) ───────────────
+  function handlePrintCostInvoice(inv: SaleInvoice) {
+    const customer = customerMap[inv.customer_id];
+    const seller = userMap[inv.created_by];
+    const warehouse = warehouseMap[inv.warehouse_id];
+    const invoiceNo = inv.id.slice(0, 8).toUpperCase();
+    const dateStr = format(new Date(inv.created_at), "dd MMM yyyy, HH:mm");
+
+    const itemsHtml = inv.items
+      .map((item) => {
+        const totalCost = item.cost * item.quantity;
+        return `
+          <tr>
+            <td style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">${item.product_name}</td>
+            <td style="text-align:center;padding:8px;border-bottom:1px solid #ddd;">${item.quantity}</td>
+            <td style="text-align:right;padding:8px;border-bottom:1px solid #ddd;">$${item.cost.toFixed(2)}</td>
+            <td style="text-align:right;padding:8px;border-bottom:1px solid #ddd;">$${totalCost.toFixed(2)}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    const grandTotalCost = inv.items.reduce((acc, item) => acc + item.cost * item.quantity, 0);
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Cost Record #${invoiceNo}</title>
+        <style>
+          @page {
+            size: A4;
+            margin: 20mm;
+          }
+          body {
+            font-family: Arial, sans-serif;
+            color: #333;
+            line-height: 1.6;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #333;
+          }
+          .header h1 { margin: 0 0 10px 0; font-size: 28px; color: #111; letter-spacing: 1px; }
+          .header p { margin: 0; font-size: 16px; color: #555; }
+          
+          .info-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+          }
+          .info-box {
+            width: 48%;
+          }
+          .info-box p { margin: 5px 0; font-size: 14px; }
+          .info-box strong { color: #111; display: inline-block; width: 90px; }
+          
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+          }
+          th {
+            background-color: #f8f9fa;
+            color: #111;
+            font-weight: bold;
+            text-align: left;
+            padding: 12px 8px;
+            border-bottom: 2px solid #dee2e6;
+            font-size: 14px;
+            text-transform: uppercase;
+          }
+          .total-row td {
+            font-weight: bold;
+            font-size: 16px;
+            color: #111;
+            padding: 15px 8px;
+            border-top: 2px solid #dee2e6;
+          }
+          .footer {
+            margin-top: 50px;
+            text-align: center;
+            font-size: 12px;
+            color: #777;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>SALE COST RECORD</h1>
+          <p>Invoice #${invoiceNo}</p>
+        </div>
+        
+        <div class="info-container">
+          <div class="info-box">
+            <p><strong>Date:</strong> ${dateStr}</p>
+            <p><strong>Seller:</strong> ${seller?.name || "Unknown"}</p>
+          </div>
+          <div class="info-box" style="text-align: right;">
+            <p><strong>Customer:</strong> ${customer?.name || "Walk-in"}</p>
+            <p><strong>Warehouse:</strong> ${warehouse?.name || "Unknown"}</p>
+          </div>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Item Description</th>
+              <th style="text-align:center;">Qty</th>
+              <th style="text-align:right;">Unit Cost</th>
+              <th style="text-align:right;">Total Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+            <tr class="total-row">
+              <td colspan="3" style="text-align:right; padding-right: 20px;">Grand Total Cost</td>
+              <td style="text-align:right;">$${grandTotalCost.toFixed(2)}</td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <div class="footer">
+          <p>This is an internal cost record document. Not a customer receipt.</p>
+          <p>Generated on ${format(new Date(), "dd MMM yyyy, HH:mm")}</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const printWin = window.open("", "_blank", "width=800,height=800");
+    if (!printWin) return;
+    printWin.document.open();
+    printWin.document.write(html);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => {
+      printWin.print();
+      printWin.close();
+    }, 500);
   }
 
   // ─── Print invoice (58mm thermal receipt) ───────────────
@@ -1293,6 +1444,15 @@ export default function SalesPage() {
                         title="Print Invoice"
                       >
                         <PrinterIcon className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950/50"
+                        onClick={() => handlePrintCostInvoice(inv)}
+                        title="Print Cost Record (A4)"
+                      >
+                        <Invoice01Icon className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>
