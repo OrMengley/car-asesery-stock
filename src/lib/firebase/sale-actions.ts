@@ -11,6 +11,7 @@ import {
     Timestamp,
 } from "firebase/firestore";
 import { SaleInvoice, Product, Stock, StockMovement } from "@/types";
+import { sendSaleNotification, sendLowStockAlert } from "../telegram";
 
 export async function createSale(data: {
     customer_id: string;
@@ -27,7 +28,7 @@ export async function createSale(data: {
     payment_method: 'cash' | 'aba' | 'aclida' | 'wing';
     created_by: string;
 }) {
-    return await runTransaction(db, async (transaction) => {
+    const { invoiceId, notificationData, lowStockItems } = await runTransaction(db, async (transaction) => {
         let subTotal = 0;
         const invoiceItems: any[] = [];
         const now = new Date();
@@ -36,6 +37,19 @@ export async function createSale(data: {
         const productDatas = new Map();
         const availableStocksMap = new Map();
         const productTotalStockMap = new Map();
+
+        // Fetch names for Telegram notification during READ phase
+        const customerRef = doc(db, "customers", data.customer_id);
+        const customerSnap = await transaction.get(customerRef);
+        const customerName = customerSnap.exists() ? (customerSnap.data() as any).name : data.customer_id;
+
+        const userRef = doc(db, "users", data.created_by);
+        const userSnap = await transaction.get(userRef);
+        const cashierName = userSnap.exists() ? (userSnap.data() as any).name : data.created_by;
+
+        const warehouseRef = doc(db, "warehouses", data.warehouse_id);
+        const warehouseSnap = await transaction.get(warehouseRef);
+        const warehouseName = warehouseSnap.exists() ? (warehouseSnap.data() as any).name : "ឃ្លាំងពេជ្រដា";
 
         for (const item of data.items) {
             const productRef = doc(db, "products", item.product_id);
@@ -126,7 +140,7 @@ export async function createSale(data: {
                     total_price: itemTotalPrice,
                 });
 
-                subTotal += (item.price * takeQty);
+                subTotal += itemTotalPrice;
                 remainingToDeduct -= takeQty;
                 productTotalStock -= takeQty; // Update local tracker for next batch
             }
@@ -151,8 +165,47 @@ export async function createSale(data: {
         };
         transaction.set(invoiceRef, invoiceDoc);
 
-        return invoiceRef.id;
+        const notificationData = {
+            invoiceNo: invoiceRef.id,
+            customerName,
+            totalAmount: finalTotalPrice,
+            discount: data.discount,
+            tax: data.tax,
+            paymentMethod: data.payment_method,
+            status: data.status,
+            cashierName,
+            warehouseName,
+            saleTime: now,
+            products: invoiceItems.map(item => ({
+                name: item.product_name,
+                quantity: item.quantity,
+                price: item.price - item.discount,
+                originalPrice: item.price
+            }))
+        };
+
+        const lowStockItems = invoiceItems.map(item => {
+            // Need to deduct the quantity taken in this transaction from the total
+            const finalStock = productTotalStockMap.get(item.product_id) - item.quantity;
+            return {
+                productName: item.product_name,
+                remainingQuantity: finalStock
+            };
+        }).filter(item => item.remainingQuantity <= 5);
+
+        return { invoiceId: invoiceRef.id, notificationData, lowStockItems };
     });
+
+    try {
+        await sendSaleNotification(notificationData);
+        for (const item of lowStockItems) {
+            await sendLowStockAlert(item);
+        }
+    } catch (e) {
+        console.error("Failed to send telegram notifications", e);
+    }
+
+    return invoiceId;
 }
 
 // --- Read Sale Invoices ---

@@ -35,6 +35,7 @@ import {
 } from "@/lib/firebase/sale-actions";
 import { getCustomers, createCustomer } from "@/lib/firebase/customer-actions";
 import { getWarehouses } from "@/lib/firebase/warehouse-actions";
+import { sendSaleNotification } from "@/lib/telegram";
 import { Product, SaleInvoice, Customer, Warehouse, Stock, User } from "@/types";
 import {
   Sheet,
@@ -625,6 +626,35 @@ export default function SalesPage() {
         payment_method: payMethod,
         amount_received: amt,
       });
+
+      // Resend notification with updated paid status
+      try {
+        const customerName = customerMap[payingInvoice.customer_id]?.name || "Walk-in";
+        const warehouseName = warehouseMap[payingInvoice.warehouse_id]?.name || "ឃ្លាំងពេជ្រដា";
+        const cashierName = userMap[payingInvoice.created_by]?.name || payingInvoice.created_by || "Unknown";
+
+        await sendSaleNotification({
+          invoiceNo: payingInvoice.id,
+          customerName,
+          totalAmount: payingInvoice.total_price,
+          discount: payingInvoice.discount,
+          tax: payingInvoice.tax,
+          paymentMethod: payMethod,
+          status: "paid",
+          cashierName,
+          warehouseName,
+          saleTime: payingInvoice.created_at,
+          products: payingInvoice.items.map(item => ({
+            name: item.product_name,
+            quantity: item.quantity,
+            price: item.price - item.discount,
+            originalPrice: item.price
+          }))
+        });
+      } catch (notifyErr) {
+        console.error("Failed to resend notification", notifyErr);
+      }
+
       toast.success("Payment recorded successfully!");
       setPayingInvoice(null);
       setAmountReceived("");
@@ -1858,8 +1888,18 @@ export default function SalesPage() {
                     <span className="text-muted-foreground font-medium">Subtotal</span>
                     <span className="font-mono font-medium">${draftSubTotal.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground font-medium">Discount</span>
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground font-medium">Discount ($)</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={overallDiscount}
+                        onChange={(e) => setOverallDiscount(Number(e.target.value))}
+                        className="h-6 w-16 text-xs text-right"
+                      />
+                    </div>
                     <span className="font-mono text-orange-500 font-medium">-${overallDiscount.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
@@ -1885,6 +1925,21 @@ export default function SalesPage() {
                 </div>
 
                 <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select
+                      value={paymentStatus}
+                      onValueChange={(val: any) => setPaymentStatus(val)}
+                    >
+                      <SelectTrigger className="h-9 text-xs font-bold uppercase tracking-wider bg-background">
+                        <SelectValue placeholder="Select Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="paid">✅ PAID</SelectItem>
+                        <SelectItem value="not paid">⏳ NOT PAID</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div className="grid grid-cols-4 gap-2">
                     {(["cash", "aba", "aclida", "wing"] ).map((m) => (
                       <Button
