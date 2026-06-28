@@ -171,6 +171,12 @@ const data = {
       allowedRoles: ["sale"] as Role[],
     },
     {
+      name: "Product Stock Report",
+      url: "/reports/product-stock",
+      icon: SchoolReportCardIcon,
+      allowedRoles: ["admin"] as Role[],
+    },
+    {
       name: "Stock Movement Report",
       url: "/reports/stock-movement",
       icon: SchoolReportCardIcon,
