@@ -215,6 +215,9 @@ export default function SalesPage() {
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [savingCustomer, setSavingCustomer] = useState(false);
 
+  // Print menu dropdown state
+  const [printMenuOpenId, setPrintMenuOpenId] = useState<string | null>(null);
+
   // Pay state
   const [payingInvoice, setPayingInvoice] = useState<SaleInvoice | null>(null);
   const [payMethod, setPayMethod] = useState<"cash" | "aba" | "aclida" | "wing">("cash");
@@ -682,8 +685,345 @@ export default function SalesPage() {
   }
 
 
-  // ─── Print cost invoice (A4 size) ───────────────
+  // ─── Print A4 Sale Invoice (customer-facing) ────────────
   function handlePrintCostInvoice(inv: SaleInvoice) {
+    const customer = customerMap[inv.customer_id];
+    const seller = userMap[inv.created_by];
+    const warehouse = warehouseMap[inv.warehouse_id];
+    const invoiceNo = inv.id.slice(0, 8).toUpperCase();
+    const dateStr = format(new Date(inv.created_at), "dd MMM yyyy, HH:mm");
+    const printedAt = format(new Date(), "dd MMM yyyy, HH:mm");
+
+    // Generate barcode SVG
+    let barcodeSvg = "";
+    try {
+      const svgNode = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      JsBarcode(svgNode, invoiceNo, {
+        format: "CODE128",
+        width: 2,
+        height: 50,
+        displayValue: true,
+        fontSize: 12,
+        margin: 0,
+        textMargin: 4,
+      });
+      barcodeSvg = svgNode.outerHTML;
+    } catch (err) {
+      console.error("Barcode generation failed:", err);
+    }
+
+    const itemsHtml = inv.items
+      .map((item, i) => {
+        const unitNet = item.price - item.discount;
+        const rowTotal = unitNet * item.quantity;
+        return `
+          <tr style="background:${i % 2 === 0 ? "#fff" : "#f9fafb"};">
+            <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;">${item.product_name}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-size:13px;">${item.quantity}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13px;">$${item.price.toFixed(2)}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13px;color:${item.discount > 0 ? "#d97706" : "#111"}">${item.discount > 0 ? `-$${item.discount.toFixed(2)}` : "—"}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13px;font-weight:600;">$${rowTotal.toFixed(2)}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    const statusColor = inv.status === "paid" ? "#059669" : "#dc2626";
+    const statusBg   = inv.status === "paid" ? "#d1fae5" : "#fee2e2";
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Sale Invoice #${invoiceNo}</title>
+        <style>
+          @page { size: A4; margin: 15mm 18mm; }
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #1f2937;
+            font-size: 13px;
+            line-height: 1.5;
+            background: #fff;
+            padding: 40px;
+          }
+
+          /* ── Header banner ── */
+          .top-bar {
+            background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+            color: #fff;
+            padding: 22px 28px;
+            border-radius: 10px 10px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0;
+          }
+          .top-bar .brand { font-size: 22px; font-weight: 800; letter-spacing: 1px; }
+          .top-bar .brand-sub { font-size: 11px; opacity: .8; margin-top: 2px; }
+          .top-bar .inv-block { text-align: right; }
+          .top-bar .inv-no { font-size: 20px; font-weight: 700; font-family: monospace; }
+          .top-bar .inv-label { font-size: 10px; opacity: .75; text-transform: uppercase; letter-spacing: 1px; }
+
+          /* ── Info strip ── */
+          .info-strip {
+            background: #f3f4f6;
+            border-left: 4px solid #059669;
+            padding: 14px 28px;
+            display: flex;
+            gap: 40px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+          }
+          .info-group { display: flex; flex-direction: column; gap: 2px; }
+          .info-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; }
+          .info-value { font-size: 13px; font-weight: 600; color: #111827; }
+
+          /* ── Customer / Seller cards ── */
+          .meta-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+            padding: 0 4px;
+          }
+          .meta-card {
+            flex: 1;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 14px 18px;
+          }
+          .meta-card .card-title {
+            font-size: 9px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 1px; color: #6b7280; margin-bottom: 6px;
+          }
+          .meta-card .card-name { font-size: 15px; font-weight: 700; color: #111827; }
+          .meta-card .card-sub  { font-size: 11px; color: #6b7280; margin-top: 2px; }
+
+          /* ── Items table ── */
+          table { width: 100%; border-collapse: collapse; margin-bottom: 0; }
+          thead tr { background: #1f2937; color: #fff; }
+          thead th {
+            padding: 10px 12px; font-size: 11px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.5px; text-align: left;
+          }
+          thead th:not(:first-child) { text-align: right; }
+          thead th:nth-child(2) { text-align: center; }
+
+          /* ── Totals block ── */
+          .totals-wrap {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 0;
+            border-top: 2px solid #e5e7eb;
+          }
+          .totals-box {
+            width: 260px;
+            padding: 16px 12px;
+          }
+          .totals-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 13px;
+          }
+          .totals-row.grand {
+            border-top: 2px solid #111827;
+            margin-top: 6px;
+            padding-top: 10px;
+            font-size: 18px;
+            font-weight: 800;
+            color: #059669;
+          }
+          .totals-row .label { color: #6b7280; }
+          .totals-row .value { font-weight: 600; }
+          .totals-row.discount .value { color: #d97706; }
+          .totals-row.tax .value { color: #2563eb; }
+
+          /* ── Payment / Status ── */
+          .pay-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 18px;
+            align-items: center;
+          }
+          .pay-badge {
+            padding: 5px 14px; border-radius: 999px;
+            font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+          }
+          .pay-method {
+            padding: 5px 14px; border-radius: 999px;
+            font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+            background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;
+          }
+
+          /* ── Footer ── */
+          .footer-section {
+            margin-top: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding-top: 16px;
+            border-top: 1px dashed #d1d5db;
+          }
+          .footer-left { font-size: 11px; color: #6b7280; }
+          .footer-left .thanks { font-size: 14px; font-weight: 700; color: #059669; margin-bottom: 4px; }
+          .barcode-wrap { text-align: right; }
+
+          /* ── Signature line ── */
+          .sig-area {
+            margin-top: 30px;
+            display: flex;
+            gap: 60px;
+          }
+          .sig-line {
+            flex: 1;
+            border-top: 1px solid #9ca3af;
+            padding-top: 6px;
+            font-size: 11px;
+            color: #6b7280;
+            text-align: center;
+          }
+
+          @media print {
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          }
+        </style>
+      </head>
+      <body>
+
+        <!-- Header -->
+        <div class="top-bar">
+          <div>
+            <div class="brand">CAR ACCESSORIES</div>
+            <div class="brand-sub">${warehouse?.name || "Sales"}</div>
+          </div>
+          <div class="inv-block">
+            <div class="inv-label">Sale Invoice</div>
+            <div class="inv-no">#${invoiceNo}</div>
+            <div style="font-size:11px;opacity:.8;margin-top:2px;">${dateStr}</div>
+          </div>
+        </div>
+
+        <!-- Info strip -->
+        <div class="info-strip">
+          <div class="info-group">
+            <span class="info-label">Invoice No</span>
+            <span class="info-value" style="font-family:monospace;">#${invoiceNo}</span>
+          </div>
+          <div class="info-group">
+            <span class="info-label">Date &amp; Time</span>
+            <span class="info-value">${dateStr}</span>
+          </div>
+          <div class="info-group">
+            <span class="info-label">Seller</span>
+            <span class="info-value">${seller?.name || "Unknown"}</span>
+          </div>
+          <div class="info-group">
+            <span class="info-label">Warehouse</span>
+            <span class="info-value">${warehouse?.name || "—"}</span>
+          </div>
+        </div>
+
+        <!-- Customer / Seller meta -->
+        <div class="meta-row">
+          <div class="meta-card">
+            <div class="card-title">Bill To</div>
+            <div class="card-name">${customer?.name || "Walk-in Customer"}</div>
+            ${customer?.phone ? `<div class="card-sub">📞 ${customer.phone}</div>` : ""}
+          </div>
+          <div class="meta-card">
+            <div class="card-title">Sold By</div>
+            <div class="card-name">${seller?.name || "Unknown"}</div>
+            <div class="card-sub">${warehouse?.name || ""}</div>
+          </div>
+        </div>
+
+        <!-- Items table -->
+        <table>
+          <thead>
+            <tr>
+              <th>Item Description</th>
+              <th style="text-align:center;">Qty</th>
+              <th style="text-align:right;">Unit Price</th>
+              <th style="text-align:right;">Discount</th>
+              <th style="text-align:right;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+
+        <!-- Totals -->
+        <div class="totals-wrap">
+          <div class="totals-box">
+            <div class="totals-row">
+              <span class="label">Sub Total</span>
+              <span class="value">$${inv.sub_total.toFixed(2)}</span>
+            </div>
+            ${inv.discount > 0 ? `
+            <div class="totals-row discount">
+              <span class="label">Discount</span>
+              <span class="value">-$${inv.discount.toFixed(2)}</span>
+            </div>` : ""}
+            ${inv.tax > 0 ? `
+            <div class="totals-row tax">
+              <span class="label">Tax</span>
+              <span class="value">+$${inv.tax.toFixed(2)}</span>
+            </div>` : ""}
+            <div class="totals-row grand">
+              <span>TOTAL</span>
+              <span>$${inv.total_price.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Payment status -->
+        <div class="pay-row">
+          <span
+            class="pay-badge"
+            style="background:${statusBg};color:${statusColor};border:1px solid ${statusColor}33;"
+          >${inv.status === "paid" ? "✓ PAID" : "✗ NOT PAID"}</span>
+          <span class="pay-method">via ${inv.payment_method.toUpperCase()}</span>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer-section">
+          <div class="footer-left">
+            <div class="thanks">Thank You for Your Purchase!</div>
+            <div>Please keep this invoice for your records.</div>
+            <div style="margin-top:6px;">Tech By: <strong>Dambang Tech Stack</strong> · +855 98943324</div>
+            <div style="margin-top:2px;font-size:10px;color:#9ca3af;">Printed: ${printedAt}</div>
+          </div>
+          <div class="barcode-wrap">
+            ${barcodeSvg}
+          </div>
+        </div>
+
+        <!-- Signature lines -->
+        <div class="sig-area">
+          <div class="sig-line">Customer Signature</div>
+          <div class="sig-line">Seller Signature</div>
+          <div class="sig-line">Authorized By</div>
+        </div>
+
+        <script>
+          window.onload = function() { window.print(); };
+        </script>
+      </body>
+      </html>
+    `;
+
+    const printWin = window.open("", "_blank", "width=900,height=850");
+    if (!printWin) return;
+    printWin.document.open();
+    printWin.document.write(html);
+    printWin.document.close();
+  }
+
+  // ─── Print cost record (A4 internal) ───────────────
+  function handlePrintCostRecord(inv: SaleInvoice) {
     const customer = customerMap[inv.customer_id];
     const seller = userMap[inv.created_by];
     const warehouse = warehouseMap[inv.warehouse_id];
@@ -713,65 +1053,19 @@ export default function SalesPage() {
         <meta charset="utf-8">
         <title>Cost Record #${invoiceNo}</title>
         <style>
-          @page {
-            size: A4;
-            margin: 20mm;
-          }
-          body {
-            font-family: Arial, sans-serif;
-            color: #333;
-            line-height: 1.6;
-          }
-          .header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #333;
-          }
+          @page { size: A4; margin: 20mm; }
+          body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
+          .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #333; }
           .header h1 { margin: 0 0 10px 0; font-size: 28px; color: #111; letter-spacing: 1px; }
           .header p { margin: 0; font-size: 16px; color: #555; }
-          
-          .info-container {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 30px;
-          }
-          .info-box {
-            width: 48%;
-          }
+          .info-container { display: flex; justify-content: space-between; margin-bottom: 30px; }
+          .info-box { width: 48%; }
           .info-box p { margin: 5px 0; font-size: 14px; }
           .info-box strong { color: #111; display: inline-block; width: 90px; }
-          
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 30px;
-          }
-          th {
-            background-color: #f8f9fa;
-            color: #111;
-            font-weight: bold;
-            text-align: left;
-            padding: 12px 8px;
-            border-bottom: 2px solid #dee2e6;
-            font-size: 14px;
-            text-transform: uppercase;
-          }
-          .total-row td {
-            font-weight: bold;
-            font-size: 16px;
-            color: #111;
-            padding: 15px 8px;
-            border-top: 2px solid #dee2e6;
-          }
-          .footer {
-            margin-top: 50px;
-            text-align: center;
-            font-size: 12px;
-            color: #777;
-            border-top: 1px solid #eee;
-            padding-top: 20px;
-          }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+          th { background-color: #f8f9fa; color: #111; font-weight: bold; text-align: left; padding: 12px 8px; border-bottom: 2px solid #dee2e6; font-size: 14px; text-transform: uppercase; }
+          .total-row td { font-weight: bold; font-size: 16px; color: #111; padding: 15px 8px; border-top: 2px solid #dee2e6; }
+          .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #777; border-top: 1px solid #eee; padding-top: 20px; }
         </style>
       </head>
       <body>
@@ -779,7 +1073,6 @@ export default function SalesPage() {
           <h1>SALE COST RECORD</h1>
           <p>Invoice #${invoiceNo}</p>
         </div>
-        
         <div class="info-container">
           <div class="info-box">
             <p><strong>Date:</strong> ${dateStr}</p>
@@ -790,7 +1083,6 @@ export default function SalesPage() {
             <p><strong>Warehouse:</strong> ${warehouse?.name || "Unknown"}</p>
           </div>
         </div>
-        
         <table>
           <thead>
             <tr>
@@ -808,7 +1100,6 @@ export default function SalesPage() {
             </tr>
           </tbody>
         </table>
-        
         <div class="footer">
           <p>This is an internal cost record document. Not a customer receipt.</p>
           <p>Generated on ${format(new Date(), "dd MMM yyyy, HH:mm")}</p>
@@ -823,10 +1114,7 @@ export default function SalesPage() {
     printWin.document.write(html);
     printWin.document.close();
     printWin.focus();
-    setTimeout(() => {
-      printWin.print();
-      printWin.close();
-    }, 500);
+    setTimeout(() => { printWin.print(); printWin.close(); }, 500);
   }
 
   // ─── Print invoice (58mm thermal receipt) ───────────────
@@ -1466,24 +1754,75 @@ export default function SalesPage() {
                       >
                         <ViewIcon className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/50"
-                        onClick={() => handlePrintInvoice(inv)}
-                        title="Print Invoice"
-                      >
-                        <PrinterIcon className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950/50"
-                        onClick={() => handlePrintCostInvoice(inv)}
-                        title="Print Cost Record (A4)"
-                      >
-                        <Invoice01Icon className="h-4 w-4" />
-                      </Button>
+                      {/* ── Print dropdown ── */}
+                      <div className="relative">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/50"
+                          title="Print Invoice"
+                          onClick={() =>
+                            setPrintMenuOpenId(
+                              printMenuOpenId === inv.id ? null : inv.id
+                            )
+                          }
+                        >
+                          <PrinterIcon className="h-4 w-4" />
+                        </Button>
+                        {printMenuOpenId === inv.id && (
+                          <>
+                            {/* backdrop */}
+                            <div
+                              className="fixed inset-0 z-40"
+                              onClick={() => setPrintMenuOpenId(null)}
+                            />
+                            <div className="absolute right-0 top-full mt-1 z-50 min-w-[180px] rounded-xl border bg-popover shadow-xl overflow-hidden animate-in fade-in-0 zoom-in-95">
+                              <div className="px-3 py-2 border-b bg-muted/40">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Print Options</p>
+                              </div>
+                              <button
+                                className="flex items-center gap-3 w-full px-4 py-2.5 text-sm hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                                onClick={() => {
+                                  setPrintMenuOpenId(null);
+                                  handlePrintInvoice(inv);
+                                }}
+                              >
+                                <PrinterIcon className="h-4 w-4 shrink-0 text-blue-500" />
+                                <div className="text-left">
+                                  <p className="font-semibold leading-none">Receipt (80mm)</p>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">Thermal receipt size</p>
+                                </div>
+                              </button>
+                              <button
+                                className="flex items-center gap-3 w-full px-4 py-2.5 text-sm hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
+                                onClick={() => {
+                                  setPrintMenuOpenId(null);
+                                  handlePrintCostInvoice(inv);
+                                }}
+                              >
+                                <Invoice01Icon className="h-4 w-4 shrink-0 text-amber-500" />
+                                <div className="text-left">
+                                  <p className="font-semibold leading-none">A4 Invoice</p>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">Customer sale invoice</p>
+                                </div>
+                              </button>
+                              <button
+                                className="flex items-center gap-3 w-full px-4 py-2.5 text-sm hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-700 dark:hover:text-red-300 transition-colors border-t"
+                                onClick={() => {
+                                  setPrintMenuOpenId(null);
+                                  handlePrintCostRecord(inv);
+                                }}
+                              >
+                                <Invoice01Icon className="h-4 w-4 shrink-0 text-red-500" />
+                                <div className="text-left">
+                                  <p className="font-semibold leading-none">Cost Record (A4)</p>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">Internal cost prices</p>
+                                </div>
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -2263,13 +2602,30 @@ export default function SalesPage() {
                   </div>
                 )}
 
-                <Button
-                  className="w-full h-11 gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25"
-                  onClick={() => handlePrintInvoice(viewingInvoice)}
-                >
-                  <PrinterIcon className="h-4 w-4" />
-                  Print Invoice
-                </Button>
+                {/* ── Print split buttons ── */}
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    className="h-11 gap-1.5 text-xs bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg shadow-blue-500/25"
+                    onClick={() => handlePrintInvoice(viewingInvoice)}
+                  >
+                    <PrinterIcon className="h-3.5 w-3.5" />
+                    Receipt (80mm)
+                  </Button>
+                  <Button
+                    className="h-11 gap-1.5 text-xs bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-500/25"
+                    onClick={() => handlePrintCostInvoice(viewingInvoice)}
+                  >
+                    <Invoice01Icon className="h-3.5 w-3.5" />
+                    A4 Invoice
+                  </Button>
+                  <Button
+                    className="h-11 gap-1.5 text-xs bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white shadow-lg shadow-red-500/25"
+                    onClick={() => handlePrintCostRecord(viewingInvoice)}
+                  >
+                    <Invoice01Icon className="h-3.5 w-3.5" />
+                    Cost Record
+                  </Button>
+                </div>
               </div>
             </>
           )}
