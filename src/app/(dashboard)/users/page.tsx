@@ -12,7 +12,8 @@ import {
   Loading01Icon,
   Search01Icon,
   Sorting01Icon,
-  Archive01Icon
+  Archive01Icon,
+  LockPasswordIcon
 } from "hugeicons-react";
 import { getUsers, archiveUser, deleteUserPermanent } from "@/lib/firebase/actions";
 import { User } from "@/types";
@@ -35,6 +36,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { UserForm } from "@/components/forms/UserForm";
+import { ChangePasswordModal } from "@/components/forms/ChangePasswordModal";
 import {
   Table,
   TableBody,
@@ -54,6 +56,7 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [userToProcess, setUserToProcess] = useState<User | null>(null);
 
   async function fetchUsers() {
@@ -230,6 +233,18 @@ export default function UsersPage() {
                         <Button 
                           size="icon" 
                           variant="ghost" 
+                          title="Change Password" 
+                          className="size-8 text-purple-600 hover:bg-purple-100/50 dark:hover:bg-purple-950/50" 
+                          onClick={() => {
+                            setUserToProcess(user);
+                            setPasswordDialogOpen(true);
+                          }}
+                        >
+                          <LockPasswordIcon className="size-4" />
+                        </Button>
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
                           title="Archive User" 
                           className="size-8 text-amber-600 hover:bg-amber-100/50" 
                           onClick={() => {
@@ -266,8 +281,8 @@ export default function UsersPage() {
         setSheetOpen(val);
         if (!val) setEditingUser(null);
       }}>
-        <SheetContent side="right" className="sm:max-w-[500px] p-0">
-          <SheetHeader className="p-6 pb-2 shrink-0 bg-muted/20 border-b">
+        <SheetContent side="right" className="sm:max-w-[500px] p-0 flex flex-col h-full">
+          <SheetHeader className="p-6 pb-4 shrink-0 bg-muted/20 border-b">
             <SheetTitle className="text-xl font-bold flex items-center gap-2">
               {editingUser ? <PencilEdit01Icon className="size-6 text-primary" /> : <UserAdd01Icon className="size-6 text-primary" />}
               {editingUser ? "Edit User Account" : "Add Team Member"}
@@ -276,16 +291,18 @@ export default function UsersPage() {
               {editingUser ? "Update profile information and role permissions." : "Invite a new member to manage the stock system."}
             </SheetDescription>
           </SheetHeader>
-          <div className="flex-1 overflow-hidden flex flex-col">
-            <UserForm 
-              initialData={editingUser || undefined}
-              onSuccess={() => {
-                setSheetOpen(false);
-                setEditingUser(null);
-                fetchUsers();
-              }} 
-            />
-          </div>
+          <ScrollArea className="flex-1 overflow-y-auto">
+            <div className="p-6">
+              <UserForm 
+                initialData={editingUser || undefined}
+                onSuccess={() => {
+                  setSheetOpen(false);
+                  setEditingUser(null);
+                  fetchUsers();
+                }} 
+              />
+            </div>
+          </ScrollArea>
         </SheetContent>
       </Sheet>
 
@@ -336,6 +353,13 @@ export default function UsersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        open={passwordDialogOpen}
+        onOpenChange={setPasswordDialogOpen}
+        user={userToProcess}
+      />
     </div>
   );
 }

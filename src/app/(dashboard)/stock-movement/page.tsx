@@ -105,7 +105,8 @@ export default function StockMovementPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 px-4 lg:px-6 py-4">
+    <div className="flex flex-col px-4 lg:px-6 py-4">
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pb-4 pt-2 -mt-2 flex flex-col gap-4">
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -118,10 +119,11 @@ export default function StockMovementPage() {
           </div>
         </div>
       </div>
+      </div>
 
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden flex flex-col">
-        <Table>
-          <TableHeader className="bg-muted/50">
+        <Table wrapperClassName="max-h-[calc(100vh-140px)]">
+          <TableHeader className="bg-muted/50 sticky top-0 z-10 backdrop-blur supports-[backdrop-filter]:bg-muted/70 shadow-sm">
             <TableRow className="hover:bg-transparent">
               <TableHead className="font-bold text-xs uppercase tracking-wider">Date</TableHead>
               <TableHead className="font-bold text-xs uppercase tracking-wider">Product</TableHead>

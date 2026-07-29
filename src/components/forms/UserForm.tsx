@@ -23,6 +23,8 @@ import {
   UserCog,
   Mail,
   Lock,
+  Eye,
+  EyeOff,
   ShieldCheck,
   Sparkles,
   Camera,
@@ -72,6 +74,7 @@ interface UserFormProps {
 export function UserForm({ onSuccess, initialData }: UserFormProps) {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [avatarUrl, setAvatarUrl] = useState(initialData?.avatar_url || "");
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -439,12 +442,21 @@ export function UserForm({ onSuccess, initialData }: UserFormProps) {
                   {isEditing ? "New Password (Optional)" : "Security Password"}
                 </FormLabel>
                 <FormControl>
-                  <Input
-                    type="password"
-                    placeholder="••••••••"
-                    className="bg-background/50 border-purple-100 focus-visible:ring-purple-500"
-                    {...field}
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      className="bg-background/50 border-purple-100 focus-visible:ring-purple-500 pr-10"
+                      {...field}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </FormControl>
                 {isEditing && (
                   <p className="text-[10px] text-muted-foreground">

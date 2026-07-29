@@ -353,8 +353,8 @@ export default function SalesPage() {
     }
 
     // Only show sales created by the currently logged-in user
-    if (authUser?.uid) {
-      result = result.filter((inv) => inv.created_by === authUser.uid);
+    if (authUser?.id) {
+      result = result.filter((inv) => inv.created_by === authUser.id);
     }
 
     // Status filter
@@ -554,7 +554,7 @@ export default function SalesPage() {
         tax: overallTax,
         status: paymentStatus,
         payment_method: paymentMethod,
-        created_by: authUser.uid,
+        created_by: authUser.id, // Reference to Users collection
       });
       toast.success("Sale created successfully!");
       resetForm();

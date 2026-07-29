@@ -15,12 +15,31 @@ import { StockMovement, Stock, Product } from "@/types";
 export async function getStockMovements() {
     const q = query(collection(db, "stock_movements"), where("type", "==", "transfer"));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        date: doc.data().date?.toDate() || new Date(),
-        created_at: doc.data().created_at?.toDate() || new Date(),
-    })) as StockMovement[];
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        let parsedDate = new Date();
+        if (data.date) {
+            if (typeof data.date.toDate === 'function') {
+                parsedDate = data.date.toDate();
+            } else if (typeof data.date === 'string' || typeof data.date === 'number') {
+                parsedDate = new Date(data.date);
+            }
+        }
+        let parsedCreatedAt = new Date();
+        if (data.created_at) {
+            if (typeof data.created_at.toDate === 'function') {
+                parsedCreatedAt = data.created_at.toDate();
+            } else if (typeof data.created_at === 'string' || typeof data.created_at === 'number') {
+                parsedCreatedAt = new Date(data.created_at);
+            }
+        }
+        return {
+            id: doc.id,
+            ...data,
+            date: parsedDate,
+            created_at: parsedCreatedAt,
+        };
+    }).sort((a, b) => b.date.getTime() - a.date.getTime()) as StockMovement[];
 }
 
 export async function createStockTransfer(data: {
@@ -173,6 +192,36 @@ export async function createStockTransfer(data: {
         return movementRef.id;
     });
 }
+
+export async function createMultipleStockTransfers(data: {
+    from_warehouse_id: string;
+    to_warehouse_id: string;
+    items: {
+        product_id: string;
+        quantity: number;
+    }[];
+    note?: string;
+    created_by: string;
+}) {
+    if (!data.items || data.items.length === 0) {
+        throw new Error("Please add at least one product item to transfer");
+    }
+
+    const transferIds: string[] = [];
+    for (const item of data.items) {
+        const id = await createStockTransfer({
+            product_id: item.product_id,
+            from_warehouse_id: data.from_warehouse_id,
+            to_warehouse_id: data.to_warehouse_id,
+            quantity: item.quantity,
+            note: data.note,
+            created_by: data.created_by,
+        });
+        transferIds.push(id);
+    }
+    return transferIds;
+}
+
 
 export async function getAllStockMovements() {
     const q = query(collection(db, "stock_movements"));
