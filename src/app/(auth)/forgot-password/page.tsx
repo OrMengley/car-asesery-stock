@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, CheckCircle2, Loader2, Mail } from "lucide-react";
+import Image from "next/image";
+import loginImg from "@/img/login/login.jpg";
 
 export default function ForgotPasswordPage() {
   const [inputVal, setInputVal] = useState("");
@@ -138,10 +140,22 @@ export default function ForgotPasswordPage() {
         </div>
       </div>
 
-      <div className="hidden bg-zinc-900 lg:flex items-center justify-center">
-        <h1 className="text-4xl font-bold text-white tracking-widest">
-          ANTIGRAVITY
-        </h1>
+      <div className="relative hidden bg-muted lg:flex items-center justify-center overflow-hidden">
+        <Image
+          src={loginImg}
+          alt="Car Accessories"
+          fill
+          priority
+          className="object-cover"
+        />
+        <div className="relative z-10 flex flex-col items-center justify-center p-8 text-white bg-black/40 backdrop-blur-xs w-full h-full">
+          <h1 className="text-4xl font-bold tracking-widest text-center">
+            CAR ACCESSORIES
+          </h1>
+          <p className="text-sm text-zinc-200 mt-2 font-medium">
+            Inventory & Stock Management System
+          </p>
+        </div>
       </div>
     </div>
   );

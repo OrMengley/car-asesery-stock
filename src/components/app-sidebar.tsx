@@ -159,11 +159,11 @@ const data = {
     },
   ],
   documents: [
-    {
-      name: "Data Library",
-      url: "#",
-      icon: Database01Icon,
-    },
+    // {
+    //   name: "Data Library",
+    //   url: "#",
+    //   icon: Database01Icon,
+    // },
     {
       name: "Inventory Report",
       url: "/reports/inventory",
@@ -182,11 +182,11 @@ const data = {
       icon: SchoolReportCardIcon,
       allowedRoles: ["admin", "sale"] as Role[],
     },
-    {
-      name: "Word Assistant",
-      url: "#",
-      icon: Doc01Icon,
-    },
+    // {
+    //   name: "Word Assistant",
+    //   url: "#",
+    //   icon: Doc01Icon,
+    // },
   ],
 }
 
@@ -202,7 +202,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   React.useEffect(() => {
     setMounted(true)
-    
+
     // Get user from local storage
     const storedAuth = localStorage.getItem("user_auth")
     if (storedAuth) {
@@ -258,8 +258,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <Sidebar collapsible="offcanvas" {...props}>
         <SidebarHeader>
           <div className="flex items-center gap-2 px-4 py-3">
-             <div className="size-5 rounded-md bg-muted animate-pulse" />
-             <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+            <div className="size-5 rounded-md bg-muted animate-pulse" />
+            <div className="h-4 w-24 rounded bg-muted animate-pulse" />
           </div>
         </SidebarHeader>
         <SidebarContent>
@@ -284,7 +284,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             >
               <Link href="/">
                 <SidebarLeft01Icon className="!size-5" />
-                <span className="text-base font-semibold italic tracking-tight">ANTIGRAVITY</span>
+                <span className="text-base font-semibold tracking-tight">CAR ACCESSORIES</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -293,7 +293,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         <NavMain items={filteredNavMain} />
         <NavDocuments items={filteredDocuments} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        {/* <NavSecondary items={data.navSecondary} className="mt-auto" /> */}
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} onLogout={handleLogout} />

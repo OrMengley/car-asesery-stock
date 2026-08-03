@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
-  title: "ANTIGRAVITY - Inventory & Stock Management",
+  title: "Car Accessories - Inventory & Stock Management",
   description: "Modern, lightweight inventory management application.",
 };
 

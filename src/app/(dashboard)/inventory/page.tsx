@@ -520,119 +520,118 @@ export default function InventoryPage() {
 
       {/* Stock Alert Panel */}
       {showAlerts && (alertItems.outOfStockItems.length > 0 || alertItems.lowStockItems.length > 0) && (
-        <Card className="border-amber-500/20 bg-gradient-to-r from-amber-500/5 via-red-500/5 to-transparent shadow-sm animate-in slide-in-from-top-2 duration-300">
-          <CardHeader className="pb-3">
+        <Card className="overflow-hidden border-amber-500/30 bg-card shadow-md animate-in slide-in-from-top-2 duration-200">
+          <CardHeader className="pb-3 pt-4 px-4 border-b border-border/50">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Alert02Icon className="size-5 text-amber-500" />
-                Stock Alerts
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Alert02Icon className="size-5 text-amber-500 shrink-0" />
+                <span>Stock Alerts</span>
+                <Badge variant="secondary" className="text-xs font-normal">
+                  {alertItems.outOfStockItems.length + alertItems.lowStockItems.length} items
+                </Badge>
               </CardTitle>
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-7"
+                className="size-7 text-muted-foreground hover:text-foreground"
                 onClick={() => setShowAlerts(false)}
               >
-                <Cancel01Icon className="size-3.5" />
+                <Cancel01Icon className="size-4" />
               </Button>
             </div>
-            <CardDescription>
-              Items that need your attention
+            <CardDescription className="text-xs">
+              Items requiring immediate attention or restocking
             </CardDescription>
           </CardHeader>
-          <CardContent className="pt-0">
+          <CardContent className="p-4">
             <div className="grid md:grid-cols-2 gap-4">
               {/* Out of stock alerts */}
               {alertItems.outOfStockItems.length > 0 && (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mb-2 pb-1 border-b border-red-500/20">
                     <span className="size-2 rounded-full bg-red-500 animate-pulse" />
                     <span className="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wider">
                       Out of Stock ({alertItems.outOfStockItems.length})
                     </span>
                   </div>
-                  <ScrollArea className="max-h-[160px]">
-                    <div className="space-y-1.5 pr-3">
-                      {alertItems.outOfStockItems.map((item) => (
-                        <div
-                          key={item.id}
-                          className="flex items-center gap-3 p-2 rounded-lg bg-red-500/5 border border-red-500/10 hover:bg-red-500/10 transition-colors cursor-pointer"
-                          onClick={() => {
-                            setDetailProduct(item);
-                            setDetailOpen(true);
-                          }}
-                        >
-                          <div className="relative h-8 w-8 rounded-md overflow-hidden border bg-muted flex items-center justify-center shrink-0">
-                            {item.thumbnails && item.thumbnails.length > 0 ? (
-                              <Image
-                                src={getOptimizedImageUrl(item.thumbnails[0], 64)}
-                                alt={item.name}
-                                fill
-                                className="object-cover"
-                                sizes="32px"
-                              />
-                            ) : (
-                              <Image01Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold truncate">{item.name}</p>
-                            <p className="text-[10px] text-muted-foreground">{item.barcode}</p>
-                          </div>
-                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-5">
-                            0
-                          </Badge>
+                  <div className="max-h-52 overflow-y-auto space-y-1.5 pr-2">
+                    {alertItems.outOfStockItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-3 p-2 rounded-lg bg-red-500/5 border border-red-500/10 hover:bg-red-500/10 transition-colors cursor-pointer"
+                        onClick={() => {
+                          setDetailProduct(item);
+                          setDetailOpen(true);
+                        }}
+                      >
+                        <div className="relative h-9 w-9 rounded-md overflow-hidden border bg-muted flex items-center justify-center shrink-0">
+                          {item.thumbnails && item.thumbnails.length > 0 ? (
+                            <Image
+                              src={getOptimizedImageUrl(item.thumbnails[0], 64)}
+                              alt={item.name}
+                              fill
+                              className="object-cover"
+                              sizes="36px"
+                            />
+                          ) : (
+                            <Image01Icon className="h-4 w-4 text-muted-foreground" />
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold truncate leading-snug">{item.name}</p>
+                          <p className="text-[10px] text-muted-foreground font-mono">{item.barcode}</p>
+                        </div>
+                        <Badge variant="destructive" className="text-[10px] px-2 py-0.5 h-5 shrink-0">
+                          0 pcs
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
               {/* Low stock alerts */}
               {alertItems.lowStockItems.length > 0 && (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mb-2 pb-1 border-b border-amber-500/20">
                     <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
                     <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
                       Low Stock ({alertItems.lowStockItems.length})
                     </span>
                   </div>
-                  <ScrollArea className="max-h-[160px]">
-                    <div className="space-y-1.5 pr-3">
-                      {alertItems.lowStockItems.map((item) => (
-                        <div
-                          key={item.id}
-                          className="flex items-center gap-3 p-2 rounded-lg bg-amber-500/5 border border-amber-500/10 hover:bg-amber-500/10 transition-colors cursor-pointer"
-                          onClick={() => {
-                            setDetailProduct(item);
-                            setDetailOpen(true);
-                          }}
-                        >
-                          <div className="relative h-8 w-8 rounded-md overflow-hidden border bg-muted flex items-center justify-center shrink-0">
-                            {item.thumbnails && item.thumbnails.length > 0 ? (
-                              <Image
-                                src={getOptimizedImageUrl(item.thumbnails[0], 64)}
-                                alt={item.name}
-                                fill
-                                className="object-cover"
-                                sizes="32px"
-                              />
-                            ) : (
-                              <Image01Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold truncate">{item.name}</p>
-                            <p className="text-[10px] text-muted-foreground">{item.barcode}</p>
-                          </div>
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 border-amber-500/30 text-amber-600 dark:text-amber-400">
-                            {item.current_stock}
-                          </Badge>
+                  <div className="max-h-52 overflow-y-auto space-y-1.5 pr-2">
+                    {alertItems.lowStockItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-3 p-2 rounded-lg bg-amber-500/5 border border-amber-500/10 hover:bg-amber-500/10 transition-colors cursor-pointer"
+                        onClick={() => {
+                          setDetailProduct(item);
+                          setDetailOpen(true);
+                        }}
+                      >
+                        <div className="relative h-9 w-9 rounded-md overflow-hidden border bg-muted flex items-center justify-center shrink-0">
+                          {item.thumbnails && item.thumbnails.length > 0 ? (
+                            <Image
+                              src={getOptimizedImageUrl(item.thumbnails[0], 64)}
+                              alt={item.name}
+                              fill
+                              className="object-cover"
+                              sizes="36px"
+                            />
+                          ) : (
+                            <Image01Icon className="h-4 w-4 text-muted-foreground" />
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold truncate leading-snug">{item.name}</p>
+                          <p className="text-[10px] text-muted-foreground font-mono">{item.barcode}</p>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] px-2 py-0.5 h-5 shrink-0 border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 font-bold">
+                          {item.current_stock} pcs
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
