@@ -13,6 +13,7 @@ import {
     runTransaction,
 } from "firebase/firestore";
 import { Purchase, PurchaseItem, PurchasePayment, Product, Stock, StockMovement } from "@/types";
+import { sendStockUpdateNotification } from "../telegram";
 
 // --- Purchases ---
 
@@ -72,7 +73,7 @@ export async function createPurchase(
         }
     }
 
-    return await runTransaction(db, async (transaction) => {
+    const result = await runTransaction(db, async (transaction) => {
         // 1. READ PHASE
         const productSnapshots: Record<string, { snap: any, data: Product }> = {};
         const stockSnapshots: Record<string, { currentQty: number, data: any }> = {};
@@ -214,6 +215,15 @@ export async function createPurchase(
 
         return purchaseRef.id;
     });
+
+    // Send stock update notification for the purchase warehouse
+    try {
+        await sendStockUpdateNotification(purchaseData.warehouse_id);
+    } catch (e) {
+        console.error("Failed to send purchase stock update notification", e);
+    }
+
+    return result;
 }
 
 export async function updatePurchase(

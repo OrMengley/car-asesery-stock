@@ -11,6 +11,7 @@ import {
     Timestamp,
 } from "firebase/firestore";
 import { StockMovement, Stock, Product } from "@/types";
+import { sendTransferNotification, sendStockUpdateNotification, sendBatchTransferNotification, TransferData } from "../telegram";
 
 export async function getStockMovements() {
     const q = query(collection(db, "stock_movements"), where("type", "==", "transfer"));
@@ -81,11 +82,21 @@ export async function createStockTransfer(data: {
     const targetStockSnaps = await getDocs(targetStocksQuery);
 
     // ─── TRANSACTION ─────────────────────────────────────────────
-    return await runTransaction(db, async (transaction) => {
+    const { movementId, notificationData } = await runTransaction(db, async (transaction) => {
         // 1. READ PHASE — re-read all docs inside transaction for isolation
         const productRef = doc(db, "products", data.product_id);
         const productSnap = await transaction.get(productRef);
         if (!productSnap.exists()) throw new Error("Product not found");
+        const productData = productSnap.data() as Product;
+
+        // Read warehouse names for notification
+        const fromWarehouseRef = doc(db, "warehouses", data.from_warehouse_id);
+        const fromWarehouseSnap = await transaction.get(fromWarehouseRef);
+        const fromWarehouseName = fromWarehouseSnap.exists() ? (fromWarehouseSnap.data() as { name: string }).name : data.from_warehouse_id;
+
+        const toWarehouseRef = doc(db, "warehouses", data.to_warehouse_id);
+        const toWarehouseSnap = await transaction.get(toWarehouseRef);
+        const toWarehouseName = toWarehouseSnap.exists() ? (toWarehouseSnap.data() as { name: string }).name : data.to_warehouse_id;
 
         // Re-read source stock docs via transaction.get()
         const sourceStockDocs = await Promise.all(
@@ -189,8 +200,30 @@ export async function createStockTransfer(data: {
         };
         transaction.set(movementRef, movementDoc);
 
-        return movementRef.id;
+        // Prepare notification data
+        const notificationData: TransferData = {
+            productName: productData.name,
+            quantity: data.quantity,
+            fromWarehouseName,
+            toWarehouseName,
+            note: data.note,
+            transferTime: now,
+        };
+
+        return { movementId: movementRef.id, notificationData };
     });
+
+    // Send notifications after successful transaction
+    try {
+        await sendTransferNotification(notificationData);
+        // Send stock update for both warehouses
+        await sendStockUpdateNotification(data.from_warehouse_id);
+        await sendStockUpdateNotification(data.to_warehouse_id);
+    } catch (e) {
+        console.error("Failed to send transfer telegram notifications", e);
+    }
+
+    return movementId;
 }
 
 export async function createMultipleStockTransfers(data: {
@@ -208,7 +241,19 @@ export async function createMultipleStockTransfers(data: {
     }
 
     const transferIds: string[] = [];
+    const transferNotifications: TransferData[] = [];
+
+    // Fetch warehouse names once for the batch
+    const fromWarehouseSnap = await getDoc(doc(db, "warehouses", data.from_warehouse_id));
+    const fromWarehouseName = fromWarehouseSnap.exists() ? (fromWarehouseSnap.data() as { name: string }).name : data.from_warehouse_id;
+    const toWarehouseSnap = await getDoc(doc(db, "warehouses", data.to_warehouse_id));
+    const toWarehouseName = toWarehouseSnap.exists() ? (toWarehouseSnap.data() as { name: string }).name : data.to_warehouse_id;
+
     for (const item of data.items) {
+        // Fetch product name for the notification
+        const productSnap = await getDoc(doc(db, "products", item.product_id));
+        const productName = productSnap.exists() ? (productSnap.data() as { name: string }).name : item.product_id;
+
         const id = await createStockTransfer({
             product_id: item.product_id,
             from_warehouse_id: data.from_warehouse_id,
@@ -218,7 +263,28 @@ export async function createMultipleStockTransfers(data: {
             created_by: data.created_by,
         });
         transferIds.push(id);
+
+        transferNotifications.push({
+            productName,
+            quantity: item.quantity,
+            fromWarehouseName,
+            toWarehouseName,
+            note: data.note,
+            transferTime: new Date(),
+        });
     }
+
+    // Send batch notification and stock update for both warehouses (once, not per item)
+    try {
+        if (transferNotifications.length > 1) {
+            await sendBatchTransferNotification(transferNotifications, fromWarehouseName, toWarehouseName);
+        }
+        // Stock updates are already sent per individual transfer in createStockTransfer
+        // No need to send again here
+    } catch (e) {
+        console.error("Failed to send batch transfer telegram notifications", e);
+    }
+
     return transferIds;
 }
 

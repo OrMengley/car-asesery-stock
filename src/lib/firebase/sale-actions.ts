@@ -11,7 +11,7 @@ import {
     Timestamp,
 } from "firebase/firestore";
 import { SaleInvoice, Product, Stock, StockMovement } from "@/types";
-import { sendSaleNotification, sendLowStockAlert } from "../telegram";
+import { sendSaleNotification, sendLowStockAlert, sendStockUpdateNotification } from "../telegram";
 
 export async function createSale(data: {
     customer_id: string;
@@ -201,6 +201,8 @@ export async function createSale(data: {
         for (const item of lowStockItems) {
             await sendLowStockAlert(item);
         }
+        // Send stock update for the sale warehouse
+        await sendStockUpdateNotification(data.warehouse_id);
     } catch (e) {
         console.error("Failed to send telegram notifications", e);
     }
