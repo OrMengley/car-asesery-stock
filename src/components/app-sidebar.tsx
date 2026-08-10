@@ -105,6 +105,12 @@ const data = {
       allowedRoles: ["admin", "sale"] as Role[],
     },
     {
+      title: "Stock Adjustment",
+      url: "/stock-adjustment",
+      icon: Settings01Icon,
+      allowedRoles: ["admin"] as Role[],
+    },
+    {
       title: "Purchases",
       url: "/purchases",
       icon: ShoppingCart01Icon,

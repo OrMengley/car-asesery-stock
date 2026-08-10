@@ -373,3 +373,48 @@ export async function sendStockUpdateNotification(warehouseId: string) {
     return false;
   }
 }
+
+// ─── STOCK ADJUSTMENT NOTIFICATION ──────────────────────────────
+
+export interface AdjustmentData {
+  productName: string;
+  direction: 'up' | 'down';
+  quantity: number;
+  warehouseName: string;
+  reason: string;
+  performedBy: string;
+  adjustmentTime: Date;
+  previousStock: number;
+  newStock: number;
+}
+
+/**
+ * Triggered when stock is manually adjusted.
+ * Sends to TELEGRAM_TOPIC_STOCK topic.
+ */
+export async function sendAdjustmentNotification(data: AdjustmentData) {
+  const d = data.adjustmentTime;
+  const dateOptions: Intl.DateTimeFormatOptions = {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  };
+  const dateStr = d.toLocaleString('en-GB', dateOptions).replace(',', '');
+
+  const directionEmoji = data.direction === 'up' ? '⬆️' : '⬇️';
+  const directionLabel = data.direction === 'up' ? 'INCREASE' : 'DECREASE';
+
+  const message = `
+${directionEmoji} <b>STOCK ADJUSTMENT — ${directionLabel}</b>
+━━━━━━━━━━━━━━━━━━━━━━
+📦 <b>Product:</b> ${data.productName}
+🔢 <b>Quantity:</b> <code>${data.direction === 'up' ? '+' : '-'}${data.quantity} pcs</code>
+🏢 <b>Warehouse:</b> ${data.warehouseName}
+📊 <b>Stock Level:</b> <code>${data.previousStock}</code> → <code>${data.newStock}</code>
+📝 <b>Reason:</b> ${data.reason}
+👤 <b>By:</b> ${data.performedBy}
+📅 <b>Date:</b> ${dateStr}
+  `.trim();
+
+  return sendTelegramMessage(message, getStockTopicId());
+}
+
