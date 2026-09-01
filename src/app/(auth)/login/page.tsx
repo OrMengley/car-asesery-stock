@@ -8,7 +8,8 @@ import { loginUser } from "@/lib/firebase/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 import Image from "next/image";
 import loginImg from "@/img/login/login.jpg";
@@ -35,7 +36,7 @@ export default function LoginPage() {
 
     try {
       const loggedInUser = await loginUser(email, password);
-      
+
       if (loggedInUser.is_archived) {
         throw new Error("Your account has been archived. Please contact an administrator.");
       }
@@ -68,19 +69,27 @@ export default function LoginPage() {
           <div className="grid gap-2 text-center">
             <h1 className="text-3xl font-bold">Login</h1>
             <p className="text-balance text-muted-foreground">
-              Enter your email or username to login
+              Enter your username to login
             </p>
           </div>
           <form onSubmit={handleLogin} className="grid gap-4">
             {error && (
-              <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md border border-destructive/20">
-                {error}
-              </div>
+              <Alert
+                variant="destructive"
+                className="border-red-200/60 bg-red-50/80 text-red-600 backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-300 shadow-sm relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-red-100/30 blur-xl pointer-events-none" />
+                <AlertCircle className="h-4 w-4 mt-0.5 text-red-500" />
+                <AlertTitle className="font-semibold tracking-tight text-red-700">Login Failed</AlertTitle>
+                <AlertDescription className="text-sm text-red-600/90 leading-relaxed font-medium">
+                  {error}
+                </AlertDescription>
+              </Alert>
             )}
             <div className="grid gap-2">
-              <Label htmlFor="email">Email or Username</Label>
+              <Label htmlFor="username">Username</Label>
               <Input
-                id="email"
+                id="username"
                 type="text"
                 placeholder="admin or email@example.com"
                 required
@@ -99,10 +108,10 @@ export default function LoginPage() {
                 </Link>
               </div>
               <div className="relative">
-                <Input 
-                  id="password" 
-                  type={showPassword ? "text" : "password"} 
-                  required 
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pr-10"

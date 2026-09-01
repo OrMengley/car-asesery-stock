@@ -64,6 +64,7 @@ import {
   ViewIcon,
   BarcodeScanIcon,
   Image01Icon,
+  Home01Icon,
 } from "hugeicons-react";
 import Image from "next/image";
 import { getProducts } from "@/lib/firebase/actions";
@@ -169,9 +170,17 @@ export default function InventoryPage() {
     "desc"
   );
 
+  // Filter states - Batches
+  const [batchSearch, setBatchSearch] = useState("");
+  const [batchWarehouseFilter, setBatchWarehouseFilter] = useState("all");
+  const [batchStockFilter, setBatchStockFilter] = useState("active");
+  const [batchSortBy, setBatchSortBy] = useState("date");
+  const [batchSortOrder, setBatchSortOrder] = useState<"asc" | "desc">("desc");
+
   // Pagination
   const [invPage, setInvPage] = useState(0);
   const [movPage, setMovPage] = useState(0);
+  const [batchPage, setBatchPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
 
   // Detail sheet
@@ -379,6 +388,96 @@ export default function InventoryPage() {
 
   const movTotalPages = Math.ceil(filteredMovements.length / pageSize);
 
+  // Filtered & sorted batches
+  const filteredBatches = useMemo(() => {
+    let result = [...stocks].filter((s) => !s.is_archived);
+
+    // Warehouse filter
+    if (batchWarehouseFilter !== "all") {
+      result = result.filter((s) => s.warehouse_id === batchWarehouseFilter);
+    }
+
+    // Stock availability filter
+    if (batchStockFilter === "active") {
+      result = result.filter((s) => s.quantity > 0);
+    } else if (batchStockFilter === "out_of_stock") {
+      result = result.filter((s) => s.quantity <= 0);
+    }
+
+    // Search filter
+    if (batchSearch) {
+      const q = batchSearch.toLowerCase();
+      result = result.filter((s) => {
+        const prod = productMap[s.product_id];
+        const wh = warehouseMap[s.warehouse_id];
+        return (
+          prod?.name.toLowerCase().includes(q) ||
+          prod?.barcode?.toLowerCase().includes(q) ||
+          s.product_barcode?.toLowerCase().includes(q) ||
+          wh?.name.toLowerCase().includes(q)
+        );
+      });
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      let cmp = 0;
+      if (batchSortBy === "name") {
+        const nameA = productMap[a.product_id]?.name || "";
+        const nameB = productMap[b.product_id]?.name || "";
+        cmp = nameA.localeCompare(nameB);
+      } else if (batchSortBy === "cost") {
+        cmp = (a.cost || 0) - (b.cost || 0);
+      } else if (batchSortBy === "quantity") {
+        cmp = (a.quantity || 0) - (b.quantity || 0);
+      } else if (batchSortBy === "value") {
+        cmp =
+          (a.cost || 0) * (a.quantity || 0) - (b.cost || 0) * (b.quantity || 0);
+      } else if (batchSortBy === "date") {
+        const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        cmp = dateA - dateB;
+      }
+      return batchSortOrder === "asc" ? cmp : -cmp;
+    });
+
+    return result;
+  }, [
+    stocks,
+    batchWarehouseFilter,
+    batchStockFilter,
+    batchSearch,
+    batchSortBy,
+    batchSortOrder,
+    productMap,
+    warehouseMap,
+  ]);
+
+  // Batch summary stats
+  const batchStats = useMemo(() => {
+    const totalBatches = filteredBatches.length;
+    const totalQuantity = filteredBatches.reduce(
+      (sum, b) => sum + (b.quantity || 0),
+      0
+    );
+    const totalValue = filteredBatches.reduce(
+      (sum, b) => sum + (b.cost || 0) * (b.quantity || 0),
+      0
+    );
+    const uniqueWarehouses = new Set(
+      filteredBatches.map((b) => b.warehouse_id)
+    ).size;
+    return { totalBatches, totalQuantity, totalValue, uniqueWarehouses };
+  }, [filteredBatches]);
+
+  // Paginated batches
+  const paginatedBatches = useMemo(() => {
+    const start = batchPage * pageSize;
+    return filteredBatches.slice(start, start + pageSize);
+  }, [filteredBatches, batchPage, pageSize]);
+
+  const batchTotalPages = Math.ceil(filteredBatches.length / pageSize);
+
   // Reset page on filter change
   useEffect(() => {
     setInvPage(0);
@@ -387,6 +486,16 @@ export default function InventoryPage() {
   useEffect(() => {
     setMovPage(0);
   }, [movementSearch, movementTypeFilter, movementDateSort]);
+
+  useEffect(() => {
+    setBatchPage(0);
+  }, [
+    batchWarehouseFilter,
+    batchStockFilter,
+    batchSearch,
+    batchSortBy,
+    batchSortOrder,
+  ]);
 
   return (
     <div className="flex flex-col gap-4 p-4 lg:p-6">
@@ -661,7 +770,7 @@ export default function InventoryPage() {
               <Archive02Icon className="size-3.5" />
               <span>Stock Batches</span>
               <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
-                {stocks.length}
+                {stocks.filter((s) => !s.is_archived && s.quantity > 0).length}
               </Badge>
             </TabsTrigger>
           </TabsList>
@@ -1249,58 +1358,393 @@ export default function InventoryPage() {
 
         {/* ===== BATCHES TAB ===== */}
         <TabsContent value="batches" className="space-y-3 mt-0">
-            <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-                <Table>
-                    <TableHeader className="bg-muted/50">
-                        <TableRow>
-                            <TableHead className="w-[56px] font-bold">#</TableHead>
-                            <TableHead className="font-bold text-xs uppercase tracking-wider">Product</TableHead>
-                            <TableHead className="font-bold text-xs uppercase tracking-wider">Warehouse</TableHead>
-                            <TableHead className="font-bold text-xs uppercase tracking-wider text-right">Cost</TableHead>
-                            <TableHead className="font-bold text-xs uppercase tracking-wider text-center">Qty</TableHead>
-                            <TableHead className="font-bold text-xs uppercase tracking-wider text-right">Value</TableHead>
-                            <TableHead className="font-bold text-xs uppercase tracking-wider text-right">Created At</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {stocks.filter(s => s.quantity > 0).length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={7} className="text-center h-48 text-muted-foreground">
-                                    No active stock batches found.
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            stocks.filter(s => s.quantity > 0).map((stock, idx) => {
-                                const product = productMap[stock.product_id];
-                                return (
-                                    <TableRow key={stock.id} className="hover:bg-muted/30">
-                                        <TableCell className="text-xs text-muted-foreground tabular-nums">{idx + 1}</TableCell>
-                                        <TableCell>
-                                            <div className="flex flex-col">
-                                                <span className="font-semibold text-sm">{product?.name || stock.product_id}</span>
-                                                <span className="text-[10px] text-muted-foreground font-mono">{product?.barcode}</span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline" className="text-[10px] bg-blue-50/50 text-blue-700 border-blue-200">
-                                                {warehouseMap[stock.warehouse_id]?.name || "Main"}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right tabular-nums text-sm font-bold">${stock.cost.toFixed(2)}</TableCell>
-                                        <TableCell className="text-center">
-                                            <span className="text-sm font-black tabular-nums">{stock.quantity}</span>
-                                        </TableCell>
-                                        <TableCell className="text-right tabular-nums text-sm font-semibold">${(stock.cost * stock.quantity).toFixed(2)}</TableCell>
-                                        <TableCell className="text-right text-xs text-muted-foreground">
-                                            {format(new Date(stock.created_at), "dd MMM yyyy")}
-                                        </TableCell>
-                                    </TableRow>
-                                )
-                            })
-                        )}
-                    </TableBody>
-                </Table>
+          {/* Filters Bar */}
+          <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+            <div className="relative flex-1 w-full sm:max-w-xs">
+              <Search01Icon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input
+                placeholder="Search product, barcode, warehouse..."
+                value={batchSearch}
+                onChange={(e) => setBatchSearch(e.target.value)}
+                className="pl-9 h-9"
+                id="batch-search"
+              />
             </div>
+            <div className="flex gap-2 flex-wrap items-center">
+              {/* Warehouse Filter */}
+              <Select
+                value={batchWarehouseFilter}
+                onValueChange={setBatchWarehouseFilter}
+              >
+                <SelectTrigger className="w-[160px] h-9" id="batch-warehouse-filter">
+                  <Home01Icon className="size-3.5 mr-1.5 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="All Warehouses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Warehouses</SelectItem>
+                  {warehouses.map((wh) => (
+                    <SelectItem key={wh.id} value={wh.id}>
+                      {wh.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Stock Status Filter */}
+              <Select
+                value={batchStockFilter}
+                onValueChange={setBatchStockFilter}
+              >
+                <SelectTrigger className="w-[140px] h-9" id="batch-stock-filter">
+                  <FilterIcon className="size-3.5 mr-1.5 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="Stock Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">In Stock (&gt;0)</SelectItem>
+                  <SelectItem value="all">All Batches</SelectItem>
+                  <SelectItem value="out_of_stock">Out of Stock (=0)</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Sort By */}
+              <Select value={batchSortBy} onValueChange={setBatchSortBy}>
+                <SelectTrigger className="w-[130px] h-9" id="batch-sort-by">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">Date</SelectItem>
+                  <SelectItem value="name">Product Name</SelectItem>
+                  <SelectItem value="cost">Unit Cost</SelectItem>
+                  <SelectItem value="quantity">Quantity</SelectItem>
+                  <SelectItem value="value">Total Value</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Sort Order Toggle */}
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-9 shrink-0"
+                onClick={() =>
+                  setBatchSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
+                }
+                id="batch-sort-order-toggle"
+                title={
+                  batchSortOrder === "asc" ? "Sort Ascending" : "Sort Descending"
+                }
+              >
+                {batchSortOrder === "asc" ? (
+                  <ArrowUp01Icon className="size-4" />
+                ) : (
+                  <ArrowDown01Icon className="size-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {/* Quick Metrics Bar for Batches */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="flex items-center gap-3 p-2.5 rounded-lg border bg-card/60">
+              <div className="size-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+                <Archive02Icon className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Batches
+                </p>
+                <p className="text-base font-black tabular-nums">
+                  {batchStats.totalBatches}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 p-2.5 rounded-lg border bg-card/60">
+              <div className="size-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                <Package01Icon className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Total Units
+                </p>
+                <p className="text-base font-black tabular-nums">
+                  {batchStats.totalQuantity}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 p-2.5 rounded-lg border bg-card/60">
+              <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <DollarCircleIcon className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Batch Value
+                </p>
+                <p className="text-base font-black tabular-nums text-primary">
+                  $
+                  {batchStats.totalValue.toLocaleString("en-US", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 p-2.5 rounded-lg border bg-card/60">
+              <div className="size-8 rounded-lg bg-violet-500/10 flex items-center justify-center text-violet-600 dark:text-violet-400 shrink-0">
+                <Home01Icon className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Warehouses
+                </p>
+                <p className="text-base font-black tabular-nums">
+                  {batchWarehouseFilter !== "all"
+                    ? 1
+                    : batchStats.uniqueWarehouses}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Batches Table */}
+          <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                <TableRow>
+                  <TableHead className="w-[56px] font-bold">#</TableHead>
+                  <TableHead className="w-[60px] font-bold hidden sm:table-cell">
+                    Image
+                  </TableHead>
+                  <TableHead className="font-bold">Product</TableHead>
+                  <TableHead className="font-bold">Warehouse</TableHead>
+                  <TableHead className="font-bold text-right">Cost</TableHead>
+                  <TableHead className="font-bold text-center">Qty</TableHead>
+                  <TableHead className="font-bold text-right hidden md:table-cell">
+                    Value
+                  </TableHead>
+                  <TableHead className="font-bold text-right">
+                    Created At
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center h-48">
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        <Loading01Icon className="animate-spin size-6 text-primary" />
+                        <span>Loading stock batches...</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : paginatedBatches.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={8}
+                      className="text-center h-48 text-muted-foreground"
+                    >
+                      <div className="flex flex-col items-center gap-2">
+                        <Archive02Icon className="size-10 text-muted-foreground/30" />
+                        <span>No stock batches match your filters.</span>
+                        {(batchSearch ||
+                          batchWarehouseFilter !== "all" ||
+                          batchStockFilter !== "active") && (
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="text-xs text-primary"
+                            onClick={() => {
+                              setBatchSearch("");
+                              setBatchWarehouseFilter("all");
+                              setBatchStockFilter("active");
+                            }}
+                          >
+                            Clear filters
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedBatches.map((stock, idx) => {
+                    const product = productMap[stock.product_id];
+                    const whName =
+                      warehouseMap[stock.warehouse_id]?.name || "Main";
+                    const mergedItem = mergedInventory.find(
+                      (m) =>
+                        m.product_ids.includes(stock.product_id) ||
+                        (product &&
+                          m.name.toLowerCase() === product.name.toLowerCase())
+                    );
+                    const thumbnails =
+                      product?.thumbnails || mergedItem?.thumbnails;
+
+                    return (
+                      <TableRow
+                        key={stock.id}
+                        className="hover:bg-muted/30 transition-colors cursor-pointer group"
+                        onClick={() => {
+                          if (mergedItem) {
+                            setDetailProduct(mergedItem);
+                            setDetailOpen(true);
+                          }
+                        }}
+                      >
+                        <TableCell className="text-xs text-muted-foreground tabular-nums">
+                          {batchPage * pageSize + idx + 1}
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          <div className="relative h-9 w-9 rounded-lg overflow-hidden border bg-muted flex items-center justify-center group-hover:scale-105 transition-transform">
+                            {thumbnails && thumbnails.length > 0 ? (
+                              <Image
+                                src={getOptimizedImageUrl(thumbnails[0], 64)}
+                                alt={product?.name || "Product"}
+                                fill
+                                className="object-cover"
+                                sizes="36px"
+                              />
+                            ) : (
+                              <Image01Icon className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col max-w-[200px] sm:max-w-[260px]">
+                            <span className="font-semibold text-sm truncate">
+                              {product?.name || stock.product_id}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              {product?.barcode ||
+                                stock.product_barcode ||
+                                "—"}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20 font-medium inline-flex items-center gap-1"
+                          >
+                            <Home01Icon className="size-2.5 shrink-0" />
+                            <span>{whName}</span>
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-sm font-semibold">
+                          ${stock.cost.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge
+                            variant="outline"
+                            className={`text-xs px-2 py-0.5 font-bold tabular-nums ${
+                              stock.quantity <= 0
+                                ? "border-red-500/30 text-red-600 dark:text-red-400 bg-red-500/10"
+                                : stock.quantity <= 5
+                                ? "border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/10"
+                                : "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
+                            }`}
+                          >
+                            {stock.quantity}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-sm font-semibold text-primary hidden md:table-cell">
+                          $
+                          {(stock.cost * stock.quantity).toLocaleString(
+                            "en-US",
+                            {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            }
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+                          {stock.created_at
+                            ? format(new Date(stock.created_at), "dd MMM yyyy")
+                            : "—"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Batches Pagination */}
+          {!loading && filteredBatches.length > 0 && (
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground hidden sm:block">
+                Showing {batchPage * pageSize + 1} -{" "}
+                {Math.min((batchPage + 1) * pageSize, filteredBatches.length)} of{" "}
+                {filteredBatches.length} batches
+              </p>
+              <div className="flex items-center gap-2 ml-auto">
+                <Select
+                  value={`${pageSize}`}
+                  onValueChange={(v) => {
+                    setPageSize(Number(v));
+                    setBatchPage(0);
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[70px]" size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[10, 20, 30, 50].map((s) => (
+                      <SelectItem key={s} value={`${s}`}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  Page {batchPage + 1} of {batchTotalPages || 1}
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-8"
+                    onClick={() => setBatchPage(0)}
+                    disabled={batchPage === 0}
+                  >
+                    <ArrowLeftDoubleIcon className="size-3.5" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-8"
+                    onClick={() => setBatchPage((p) => Math.max(0, p - 1))}
+                    disabled={batchPage === 0}
+                  >
+                    <ArrowLeft01Icon className="size-3.5" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-8"
+                    onClick={() =>
+                      setBatchPage((p) =>
+                        Math.min((batchTotalPages || 1) - 1, p + 1)
+                      )
+                    }
+                    disabled={batchPage >= (batchTotalPages || 1) - 1}
+                  >
+                    <ArrowRight01Icon className="size-3.5" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-8"
+                    onClick={() => setBatchPage((batchTotalPages || 1) - 1)}
+                    disabled={batchPage >= (batchTotalPages || 1) - 1}
+                  >
+                    <ArrowRightDoubleIcon className="size-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
