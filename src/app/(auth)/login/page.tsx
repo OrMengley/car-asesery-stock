@@ -8,6 +8,7 @@ import { loginUser } from "@/lib/firebase/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -18,10 +19,25 @@ export default function LoginPage() {
   const { user, loading: authLoading, login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("remember_me");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.username) setEmail(parsed.username);
+        if (parsed?.password) setPassword(parsed.password);
+        setRememberMe(true);
+      }
+    } catch (e) {
+      console.error("Failed to load saved credentials", e);
+    }
+  }, []);
 
   useEffect(() => {
     if (!authLoading && user && !loading) {
@@ -39,6 +55,15 @@ export default function LoginPage() {
 
       if (loggedInUser.is_archived) {
         throw new Error("Your account has been archived. Please contact an administrator.");
+      }
+
+      if (rememberMe) {
+        localStorage.setItem(
+          "remember_me",
+          JSON.stringify({ username: email, password: password })
+        );
+      } else {
+        localStorage.removeItem("remember_me");
       }
 
       login(loggedInUser);
@@ -93,25 +118,19 @@ export default function LoginPage() {
                 type="text"
                 placeholder="admin or email@example.com"
                 required
+                autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div className="grid gap-2">
-              <div className="flex items-center">
-                <Label htmlFor="password">Password</Label>
-                <Link
-                  href="/forgot-password"
-                  className="ml-auto inline-block text-sm text-primary hover:underline"
-                >
-                  Forgot your password?
-                </Link>
-              </div>
+              <Label htmlFor="password">Password</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   required
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pr-10"
@@ -124,6 +143,33 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="remember-me"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => {
+                    const isChecked = checked === true;
+                    setRememberMe(isChecked);
+                    if (!isChecked) {
+                      localStorage.removeItem("remember_me");
+                    }
+                  }}
+                />
+                <Label
+                  htmlFor="remember-me"
+                  className="text-sm font-normal text-muted-foreground cursor-pointer select-none"
+                >
+                  Remember me
+                </Label>
+              </div>
+              <Link
+                href="/forgot-password"
+                className="text-sm text-primary hover:underline"
+              >
+                Forgot your password?
+              </Link>
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}

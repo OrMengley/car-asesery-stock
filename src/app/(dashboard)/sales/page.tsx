@@ -2018,217 +2018,240 @@ export default function SalesPage() {
             </div>
 
             {/* ─── RIGHT COLUMN: Cart & Checkout ─── */}
-            <div className="w-full md:w-[400px] xl:w-[450px] flex flex-col bg-background shrink-0 shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.1)] z-10 min-h-0">
-              <div className="flex-1 overflow-y-auto p-5">
-                <div className="space-y-6">
-                  {/* Customer & Warehouse */}
-                  <div className="space-y-4 bg-muted/30 p-4 rounded-xl border">
-                    <h3 className="font-bold text-sm flex items-center gap-2">
-                      <Invoice01Icon className="h-4 w-4 text-emerald-500" />
-                      Sale Settings
-                    </h3>
-                    <div className="space-y-3">
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-xs font-semibold text-muted-foreground">Customer</Label>
-                          <button
-                            type="button"
-                            onClick={() => setShowNewCustomer(!showNewCustomer)}
-                            className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 transition-colors"
-                          >
-                            {showNewCustomer ? (
-                              <><Cancel01Icon className="h-3 w-3" />Cancel</>
-                            ) : (
-                              <><Add01Icon className="h-3 w-3" />New Customer</>
-                            )}
-                          </button>
-                        </div>
-                        {showNewCustomer ? (
-                          <div className="space-y-2 p-3 rounded-lg border-2 border-dashed border-emerald-200 bg-emerald-50/50 dark:border-emerald-800/50 dark:bg-emerald-950/20">
-                            <Input
-                              placeholder="Customer name *"
-                              value={newCustomerName}
-                              onChange={(e) => setNewCustomerName(e.target.value)}
-                              className="h-9 text-sm bg-background"
-                              autoFocus
-                            />
-                            <Input
-                              placeholder="Phone (optional)"
-                              value={newCustomerPhone}
-                              onChange={(e) => setNewCustomerPhone(e.target.value)}
-                              className="h-9 text-sm bg-background"
-                            />
-                            <Button
-                              type="button"
-                              size="sm"
-                              disabled={savingCustomer || !newCustomerName.trim()}
-                              onClick={handleQuickCreateCustomer}
-                              className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
-                            >
-                              {savingCustomer ? <Loading01Icon className="h-3 w-3 animate-spin" /> : <CheckmarkCircle01Icon className="h-3 w-3" />}
-                              {savingCustomer ? "Creating..." : "Save & Select"}
-                            </Button>
-                          </div>
-                        ) : (
-                          <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                            <SelectTrigger className="h-10 text-sm bg-background">
-                              <SelectValue placeholder="Select customer" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {customers.length === 0 ? (
-                                <div className="p-3 text-sm text-center text-muted-foreground">No customers</div>
-                              ) : (
-                                customers.map((c) => (
-                                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                ))
-                              )}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      </div>
+            <div className="w-full md:w-[380px] lg:w-[400px] xl:w-[430px] flex flex-col bg-background shrink-0 shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.1)] z-10 min-h-0 h-full border-l">
+              {/* ── 1. Compact Sale Settings ── */}
+              <div className="p-3 bg-muted/25 border-b shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Invoice01Icon className="h-3.5 w-3.5 text-emerald-500" />
+                    Sale Settings
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewCustomer(!showNewCustomer)}
+                    className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 flex items-center gap-1 transition-colors"
+                  >
+                    {showNewCustomer ? (
+                      <><Cancel01Icon className="h-3 w-3" />Cancel</>
+                    ) : (
+                      <><Add01Icon className="h-3 w-3" />New Customer</>
+                    )}
+                  </button>
+                </div>
 
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-muted-foreground">Warehouse (Stock Source)</Label>
-                        <Select
-                          value={selectedWarehouseId}
-                          onValueChange={setSelectedWarehouseId}
-                          disabled={!!userInfo?.warehouse_id}
-                        >
-                          <SelectTrigger className="h-10 text-sm bg-background">
-                            <SelectValue placeholder="Select warehouse" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {warehouses.length === 0 ? (
-                              <div className="p-2 text-sm text-center">No warehouses</div>
-                            ) : (
-                              warehouses
-                                .filter(w => !userInfo?.warehouse_id || w.id === userInfo.warehouse_id)
-                                .map((w) => (
-                                  <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
-                                ))
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                {showNewCustomer ? (
+                  <div className="space-y-2 p-2.5 rounded-lg border border-dashed border-emerald-300 bg-emerald-50/60 dark:border-emerald-800 dark:bg-emerald-950/30">
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        placeholder="Customer name *"
+                        value={newCustomerName}
+                        onChange={(e) => setNewCustomerName(e.target.value)}
+                        className="h-8 text-xs bg-background"
+                        autoFocus
+                      />
+                      <Input
+                        placeholder="Phone (optional)"
+                        value={newCustomerPhone}
+                        onChange={(e) => setNewCustomerPhone(e.target.value)}
+                        className="h-8 text-xs bg-background"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={savingCustomer || !newCustomerName.trim()}
+                      onClick={handleQuickCreateCustomer}
+                      className="w-full h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                    >
+                      {savingCustomer ? <Loading01Icon className="h-3 w-3 animate-spin" /> : <CheckmarkCircle01Icon className="h-3 w-3" />}
+                      {savingCustomer ? "Creating..." : "Save & Select Customer"}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Customer</Label>
+                      <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                        <SelectTrigger className="h-8 text-xs bg-background">
+                          <SelectValue placeholder="Select customer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {customers.length === 0 ? (
+                            <div className="p-2 text-xs text-center text-muted-foreground">No customers</div>
+                          ) : (
+                            customers.map((c) => (
+                              <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Warehouse</Label>
+                      <Select
+                        value={selectedWarehouseId}
+                        onValueChange={setSelectedWarehouseId}
+                        disabled={!!userInfo?.warehouse_id}
+                      >
+                        <SelectTrigger className="h-8 text-xs bg-background">
+                          <SelectValue placeholder="Select warehouse" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {warehouses.length === 0 ? (
+                            <div className="p-2 text-xs text-center">No warehouses</div>
+                          ) : (
+                            warehouses
+                              .filter(w => !userInfo?.warehouse_id || w.id === userInfo.warehouse_id)
+                              .map((w) => (
+                                <SelectItem key={w.id} value={w.id} className="text-xs">{w.name}</SelectItem>
+                              ))
+                          )}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
+                )}
+              </div>
 
-                  {/* Cart Items */}
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-bold text-sm flex items-center gap-2">
-                        <ShoppingCart01Icon className="h-4 w-4 text-blue-500" />
-                        Cart Items
-                      </h3>
-                      {draftItems.length > 0 && (
-                        <Badge variant="secondary" className="font-mono">{draftItems.length} items</Badge>
-                      )}
-                    </div>
-
-                    {draftItems.length === 0 ? (
-                      <div className="rounded-xl border-2 border-dashed border-muted p-8 text-center bg-muted/10">
-                        <Package01Icon className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-                        <p className="text-sm font-medium">Your cart is empty</p>
-                        <p className="text-xs text-muted-foreground mt-1">Select products from the left to add</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {draftItems.map((item, idx) => (
-                          <div key={idx} className="flex gap-3 p-3 rounded-xl border bg-card shadow-sm relative group">
-                            <button
-                              type="button"
-                              onClick={() => removeDraftItem(idx)}
-                              className="absolute -top-2 -right-2 h-6 w-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200 border border-red-200"
-                            >
-                              <Cancel01Icon className="h-3 w-3" />
-                            </button>
-
-                            <div className="h-14 w-14 rounded-lg overflow-hidden bg-muted shrink-0 border relative">
-                              {item.product_image ? (
-                                <Image
-                                  src={getOptimizedImageUrl(item.product_image)}
-                                  alt={item.product_name}
-                                  fill
-                                  className="object-cover"
-                                />
-                              ) : (
-                                <div className="h-full w-full flex items-center justify-center">
-                                  <Package01Icon className="h-5 w-5 text-muted-foreground/50" />
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="flex-1 min-w-0 flex flex-col justify-between">
-                              <p className="text-sm font-bold line-clamp-1" title={item.product_name}>
-                                {item.product_name}
-                              </p>
-                              
-                              <div className="flex items-center gap-2 mt-2">
-                                <div className="flex items-center border rounded-md h-7 overflow-hidden w-24">
-                                  <button 
-                                    className="px-2 h-full bg-muted/50 hover:bg-muted text-muted-foreground"
-                                    onClick={() => updateDraftItem(idx, "quantity", Math.max(1, item.quantity - 1))}
-                                  >-</button>
-                                  <input 
-                                    type="number" 
-                                    min={1} 
-                                    value={item.quantity}
-                                    onChange={(e) => updateDraftItem(idx, "quantity", Math.max(1, Number(e.target.value)))}
-                                    className="flex-1 h-full w-full text-center text-xs font-bold focus:outline-none"
-                                  />
-                                  <button 
-                                    className="px-2 h-full bg-muted/50 hover:bg-muted text-muted-foreground"
-                                    onClick={() => updateDraftItem(idx, "quantity", item.quantity + 1)}
-                                  >+</button>
-                                </div>
-
-                                <div className="flex items-center gap-1 flex-1">
-                                  <span className="text-xs text-muted-foreground font-semibold">$</span>
-                                  <Input
-                                    type="number"
-                                    min={0}
-                                    step={0.01}
-                                    value={item.price}
-                                    onChange={(e) => updateDraftItem(idx, "price", Math.max(0, Number(e.target.value)))}
-                                    className="h-7 text-xs font-bold px-2 py-0 border-transparent hover:border-input focus:border-input bg-transparent hover:bg-background transition-colors"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="text-right shrink-0 flex flex-col justify-between items-end">
-                               <p className="font-black text-sm text-emerald-600 dark:text-emerald-400">
-                                 ${item.total.toFixed(2)}
-                               </p>
-                               <div className="flex items-center gap-1 mt-1">
-                                 <Label className="text-[10px] text-muted-foreground">Disc</Label>
-                                 <Input
-                                    type="number"
-                                    min={0}
-                                    step={0.01}
-                                    value={item.discount}
-                                    onChange={(e) => updateDraftItem(idx, "discount", Math.max(0, Number(e.target.value)))}
-                                    className="h-6 w-14 text-[10px] text-right px-1.5 border-dashed"
-                                 />
-                               </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+              {/* ── 2. Cart Items (Scrollable List) ── */}
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                <div id="cart-header" className="px-3.5 py-2 border-b flex items-center justify-between bg-muted/10 shrink-0">
+                  <div className="flex items-center gap-1.5">
+                    <ShoppingCart01Icon className="h-4 w-4 text-blue-500" />
+                    <h3 className="font-bold text-xs tracking-tight">Cart Items</h3>
+                    {draftItems.length > 0 && (
+                      <Badge variant="secondary" className="font-mono text-[10px] px-1.5 py-0 h-4">
+                        {draftItems.length}
+                      </Badge>
                     )}
                   </div>
+                  {draftItems.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setDraftItems([])}
+                      className="text-[10px] font-medium text-muted-foreground hover:text-red-500 transition-colors"
+                    >
+                      Clear all
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
+                  {draftItems.length === 0 ? (
+                    <div className="h-full min-h-[140px] flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted p-4 text-center bg-muted/10">
+                      <Package01Icon className="h-8 w-8 text-muted-foreground/30 mb-2" />
+                      <p className="text-xs font-semibold text-foreground">Your cart is empty</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">Click products on the left to add</p>
+                    </div>
+                  ) : (
+                    draftItems.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="flex gap-2.5 p-2.5 rounded-xl border bg-card shadow-xs relative group hover:border-emerald-200 dark:hover:border-emerald-800 transition-colors"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => removeDraftItem(idx)}
+                          className="absolute -top-1.5 -right-1.5 h-5 w-5 bg-red-100 text-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200 border border-red-200 shadow-sm z-10"
+                          title="Remove item"
+                        >
+                          <Cancel01Icon className="h-3 w-3" />
+                        </button>
+
+                        {/* Thumbnail */}
+                        <div className="h-12 w-12 rounded-lg overflow-hidden bg-muted shrink-0 border relative">
+                          {item.product_image ? (
+                            <Image
+                              src={getOptimizedImageUrl(item.product_image)}
+                              alt={item.product_name}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="h-full w-full flex items-center justify-center">
+                              <Package01Icon className="h-5 w-5 text-muted-foreground/50" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Details & controls */}
+                        <div className="flex-1 min-w-0 flex flex-col justify-between">
+                          <div className="flex items-start justify-between gap-1">
+                            <p className="text-xs font-bold line-clamp-1" title={item.product_name}>
+                              {item.product_name}
+                            </p>
+                            <span className="font-black text-xs text-emerald-600 dark:text-emerald-400 shrink-0 font-mono">
+                              ${item.total.toFixed(2)}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2 mt-1.5">
+                            {/* Quantity */}
+                            <div className="flex items-center border rounded-md h-6.5 overflow-hidden w-20 shrink-0 bg-muted/20">
+                              <button
+                                type="button"
+                                className="px-1.5 h-full bg-muted/40 hover:bg-muted text-muted-foreground text-xs font-bold transition-colors"
+                                onClick={() => updateDraftItem(idx, "quantity", Math.max(1, item.quantity - 1))}
+                              >-</button>
+                              <input
+                                type="number"
+                                min={1}
+                                value={item.quantity}
+                                onChange={(e) => updateDraftItem(idx, "quantity", Math.max(1, Number(e.target.value)))}
+                                className="flex-1 h-full w-full text-center text-xs font-bold focus:outline-none bg-transparent"
+                              />
+                              <button
+                                type="button"
+                                className="px-1.5 h-full bg-muted/40 hover:bg-muted text-muted-foreground text-xs font-bold transition-colors"
+                                onClick={() => updateDraftItem(idx, "quantity", item.quantity + 1)}
+                              >+</button>
+                            </div>
+
+                            {/* Price */}
+                            <div className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                              <span className="text-[11px] font-semibold">$</span>
+                              <Input
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                value={item.price}
+                                onChange={(e) => updateDraftItem(idx, "price", Math.max(0, Number(e.target.value)))}
+                                className="h-6 w-16 text-xs font-bold px-1.5 py-0 border-muted bg-background/50 hover:bg-background focus:bg-background"
+                              />
+                            </div>
+
+                            {/* Discount */}
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-muted-foreground font-medium">Disc</span>
+                              <Input
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                value={item.discount}
+                                onChange={(e) => updateDraftItem(idx, "discount", Math.max(0, Number(e.target.value)))}
+                                className="h-6 w-12 text-[11px] text-right px-1 border-dashed"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
-              {/* Summary Footer */}
-              <div className="p-5 border-t bg-card shrink-0 shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.1)] relative z-20">
-                <div className="space-y-2 mb-4">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground font-medium">Subtotal</span>
-                    <span className="font-mono font-medium">${draftSubTotal.toFixed(2)}</span>
+              {/* ── 3. Summary & Checkout Footer ── */}
+              <div className="p-3.5 border-t bg-card shrink-0 shadow-[0_-10px_25px_-10px_rgba(0,0,0,0.08)] relative z-20 space-y-2.5">
+                {/* Calculations */}
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between items-center text-muted-foreground">
+                    <span className="font-medium">Subtotal</span>
+                    <span className="font-mono font-semibold text-foreground">${draftSubTotal.toFixed(2)}</span>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
                       <span className="text-muted-foreground font-medium">Discount ($)</span>
                       <Input
                         type="number"
@@ -2236,13 +2259,14 @@ export default function SalesPage() {
                         step={0.01}
                         value={overallDiscount}
                         onChange={(e) => setOverallDiscount(Number(e.target.value))}
-                        className="h-6 w-16 text-xs text-right"
+                        className="h-6 w-16 text-xs text-right px-1.5 py-0"
                       />
                     </div>
-                    <span className="font-mono text-orange-500 font-medium">-${overallDiscount.toFixed(2)}</span>
+                    <span className="font-mono text-orange-500 font-semibold">-${overallDiscount.toFixed(2)}</span>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
                       <span className="text-muted-foreground font-medium">Tax ($)</span>
                       <Input
                         type="number"
@@ -2250,58 +2274,65 @@ export default function SalesPage() {
                         step={0.01}
                         value={overallTax}
                         onChange={(e) => setOverallTax(Number(e.target.value))}
-                        className="h-6 w-16 text-xs text-right"
+                        className="h-6 w-16 text-xs text-right px-1.5 py-0"
                       />
                     </div>
-                    <span className="font-mono text-blue-500 font-medium">+${overallTax.toFixed(2)}</span>
+                    <span className="font-mono text-blue-500 font-semibold">+${overallTax.toFixed(2)}</span>
                   </div>
-                  <div className="pt-2 mt-2 border-t flex justify-between items-center">
-                    <span className="font-bold text-lg">Total</span>
-                    <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
+
+                  <div className="pt-1.5 border-t flex justify-between items-baseline">
+                    <span className="font-bold text-sm text-foreground">Total</span>
+                    <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
                       ${draftTotalPrice.toFixed(2)}
                     </span>
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <Select
-                      value={paymentStatus}
-                      onValueChange={(val: any) => setPaymentStatus(val)}
-                    >
-                      <SelectTrigger className="h-9 text-xs font-bold uppercase tracking-wider bg-background">
-                        <SelectValue placeholder="Select Status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="paid">✅ PAID</SelectItem>
-                        <SelectItem value="not paid">⏳ NOT PAID</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="grid grid-cols-4 gap-2">
-                    {(["cash", "aba", "aclida", "wing"] ).map((m) => (
-                      <Button
-                        key={m}
-                        type="button"
-                        variant={paymentMethod === m ? "default" : "outline"}
-                        onClick={() => setPaymentMethod(m as any)}
-                        className={`h-9 text-xs uppercase font-bold tracking-wider ${
-                          paymentMethod === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-                        }`}
+                {/* Payment controls & Charge */}
+                <div className="space-y-2 pt-1 border-t border-border/50">
+                  <div className="grid grid-cols-5 gap-1.5">
+                    <div className="col-span-2">
+                      <Select
+                        value={paymentStatus}
+                        onValueChange={(val: any) => setPaymentStatus(val)}
                       >
-                        {m}
-                      </Button>
-                    ))}
+                        <SelectTrigger className="h-8 text-[11px] font-bold uppercase tracking-wider bg-background px-2">
+                          <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="paid" className="text-xs">✅ PAID</SelectItem>
+                          <SelectItem value="not paid" className="text-xs">⏳ NOT PAID</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="col-span-3 grid grid-cols-4 gap-1">
+                      {(["cash", "aba", "aclida", "wing"] as const).map((m) => (
+                        <Button
+                          key={m}
+                          type="button"
+                          size="sm"
+                          variant={paymentMethod === m ? "default" : "outline"}
+                          onClick={() => setPaymentMethod(m)}
+                          className={`h-8 px-1 text-[10px] uppercase font-bold tracking-tight ${
+                            paymentMethod === m
+                              ? "bg-primary text-primary-foreground shadow-sm"
+                              : "text-muted-foreground hover:bg-muted border-border/70"
+                          }`}
+                        >
+                          {m}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
 
                   <Button
                     onClick={handleCreate}
                     disabled={draftItems.length === 0 || creating}
-                    className="w-full h-12 text-base font-bold bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-xl shadow-emerald-500/25 border-none transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+                    className="w-full h-10 text-sm font-bold bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-md shadow-emerald-500/20 border-none transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:hover:scale-100"
                   >
                     {creating ? (
-                      <><Loading01Icon className="mr-2 h-5 w-5 animate-spin" />Processing...</>
+                      <><Loading01Icon className="mr-2 h-4 w-4 animate-spin" />Processing...</>
                     ) : (
                       <>Charge ${draftTotalPrice.toFixed(2)}</>
                     )}

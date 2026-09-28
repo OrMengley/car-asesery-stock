@@ -171,6 +171,18 @@ const data = {
     //   icon: Database01Icon,
     // },
     {
+      name: "Sales Report",
+      url: "/reports/sales",
+      icon: SchoolReportCardIcon,
+      allowedRoles: ["admin", "sale"] as Role[],
+    },
+    {
+      name: "Sales by Category",
+      url: "/reports/sales-by-category",
+      icon: SchoolReportCardIcon,
+      allowedRoles: ["admin", "sale"] as Role[],
+    },
+    {
       name: "Inventory Report",
       url: "/reports/inventory",
       icon: SchoolReportCardIcon,
